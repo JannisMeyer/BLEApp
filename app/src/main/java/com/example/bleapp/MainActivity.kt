@@ -2,22 +2,30 @@ package com.example.bleapp
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.view.View
+import android.widget.Adapter
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.bleapp.adapter.BleAdapter
 import com.example.bleapp.databinding.ActivityMainBinding
 
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding:ActivityMainBinding
+
+    private lateinit var adapter : BleAdapter
 
     private val bluetoothAdapter : BluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
     private val bluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner
@@ -28,11 +36,14 @@ class MainActivity : AppCompatActivity() {
     private val permissions = arrayOf(Manifest.permission.BLUETOOTH_SCAN)
     private val requestCode = 888
 
+    private var devices : MutableList<BluetoothDevice> = arrayListOf()
+
     // Device scan callback.
     private val leScanCallback: ScanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             super.onScanResult(callbackType, result)
-
+            devices.add(result.device)
+            adapter.notifyDataSetChanged()
         }
     }
 
@@ -46,8 +57,15 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // RecyclerView handling
+        val recyclerView = binding.devicesRecyclerView as RecyclerView
+        adapter = BleAdapter(devices)
+        recyclerView.adapter = adapter
+        recyclerView.layoutManager = LinearLayoutManager(this)
+
         //set OnClickListener for BLE-Button
-        binding.button.setOnClickListener {
+        binding.scanButton.setOnClickListener {
+            Toast.makeText(this, "Scanning for ble devices...", Toast.LENGTH_LONG).show()
             scanBleDevice()
         }
     }
