@@ -6,21 +6,32 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
+import android.companion.AssociationRequest
+import android.companion.BluetoothLeDeviceFilter
+import android.companion.CompanionDeviceManager
+import android.content.Context
+import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.ParcelUuid
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.app.ActivityCompat.startIntentSenderForResult
+import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.bleapp.adapter.BleAdapter
 import com.example.bleapp.databinding.ActivityMainBinding
+import java.util.*
+import java.util.regex.Pattern
 
-//TODO: Look at handler and callback (not working)
-//TODO: Look at permission requesting (not working)
+//(TODO: Look at handler and callback (not working)
+//TODO: Look at permission requesting (not working))
+//TODO: Look at companion binding / filter (not working)
 
 class MainActivity : AppCompatActivity() {
 
@@ -33,17 +44,47 @@ class MainActivity : AppCompatActivity() {
     private var scanning = false
     private val handler = Handler()
 
-    @RequiresApi(Build.VERSION_CODES.S)
     private val permissions = arrayOf(Manifest.permission.BLUETOOTH,
-                                      Manifest.permission.BLUETOOTH_SCAN,
-                                      Manifest.permission.BLUETOOTH_CONNECT,
                                       Manifest.permission.BLUETOOTH_ADMIN,
-                                      Manifest.permission.BLUETOOTH_ADVERTISE,
-                                      Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-                                      Manifest.permission.ACCESS_FINE_LOCATION)
-    private val blePermissionsRequestCode = 888
+                                      /*Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+                                      Manifest.permission.ACCESS_FINE_LOCATION,
+                                      Manifest.permission.ACCESS_COARSE_LOCATION*/)
+    private val blePermissionsRequestCode = 1
+    private val selectDeviceRequestCode = 1
 
     private var devices : MutableList<BluetoothDevice> = arrayListOf()
+
+    private val deviceFilter: BluetoothLeDeviceFilter = BluetoothLeDeviceFilter.Builder()
+        // Match only Bluetooth devices whose name matches the pattern.
+        .setNamePattern(Pattern.compile("BBC micro:bit CMSIS-DAP"))
+        // Match only Bluetooth devices whose service UUID matches this pattern.
+        /*.addServiceUuid(ParcelUuid(UUID(0x123abcL, -1L)), null)*/
+        .build()
+
+    private val pairingRequest: AssociationRequest = AssociationRequest.Builder()
+        // Find only devices that match this request filter.
+        .addDeviceFilter(deviceFilter)
+        // Stop scanning as soon as one device matching the filter is found.
+        .setSingleDevice(true)
+        .build()
+
+    private val deviceManager =
+        requireContext().getSystemService(Context.COMPANION_DEVICE_SERVICE)
+
+    deviceManager.associate(pairingRequest,
+        object : CompanionDeviceManager.Callback() {
+            // Called when a device is found. Launch the IntentSender so the user
+            // can select the device they want to pair with.
+            override fun onDeviceFound(chooserLauncher: IntentSender) {
+                startIntentSenderForResult(chooserLauncher,
+                    selectDeviceRequestCode, null, 0, 0, 0)
+            }
+
+            override fun onFailure(error: CharSequence?) {
+                // Handle the failure.
+            }
+    }, null)
+
 
     // Device scan callback
     private val leScanCallback: ScanCallback = object : ScanCallback() {
@@ -64,7 +105,7 @@ class MainActivity : AppCompatActivity() {
 
     // Stops scanning after 10 seconds.
     private val scanPeriod: Long = 10000
-    @RequiresApi(Build.VERSION_CODES.S)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -80,12 +121,12 @@ class MainActivity : AppCompatActivity() {
 
         //set OnClickListener for BLE-Button
         binding.scanButton.setOnClickListener {
-            checkPermissions(permissions, blePermissionsRequestCode)
+            //checkPermissions(permissions, blePermissionsRequestCode)
+            ActivityCompat.requestPermissions(this, permissions, blePermissionsRequestCode)
         }
     }
 
     @SuppressLint("MissingPermission") //permissions are checked before call of this method
-    @RequiresApi(Build.VERSION_CODES.S)
     private fun scanBleDevice() {
 
         Toast.makeText(applicationContext, "scanBleDevice()", Toast.LENGTH_LONG).show()
@@ -126,11 +167,28 @@ class MainActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
-        if (requestCode == blePermissionsRequestCode && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "Scanning for ble devices...", Toast.LENGTH_LONG).show()
-            scanBleDevice()
+        var granted = true
+
+        var test = 0
+
+        if (requestCode == blePermissionsRequestCode && grantResults.isNotEmpty() /*&& grantResults[0] == PackageManager.PERMISSION_GRANTED*/) {
+            for (item in grantResults) {
+                if(item == PackageManager.PERMISSION_DENIED) {
+                    granted = false
+                    Toast.makeText(this, item.toString()+test.toString(), Toast.LENGTH_LONG).show()
+                    break;
+                }
+                test++
+            }
+            if (granted) {
+                Toast.makeText(this, "Scanning for ble devices...", Toast.LENGTH_LONG).show()
+                //scanBleDevice()
+            }
+            else {
+                Toast.makeText(this, "Permissions denied!", Toast.LENGTH_LONG).show()
+            }
         } else {
-            Toast.makeText(this, "Permissions denied, no ble-scanning possible!", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Failed giving permissions!", Toast.LENGTH_LONG).show()
         }
     }
 }
