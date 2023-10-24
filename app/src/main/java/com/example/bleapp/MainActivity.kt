@@ -2,6 +2,7 @@ package com.example.bleapp
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.le.ScanCallback
@@ -10,6 +11,7 @@ import android.companion.AssociationRequest
 import android.companion.BluetoothLeDeviceFilter
 import android.companion.CompanionDeviceManager
 import android.content.Context
+import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Build
@@ -27,11 +29,12 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.bleapp.adapter.BleAdapter
 import com.example.bleapp.databinding.ActivityMainBinding
 import java.util.*
+import java.util.concurrent.Executor
 import java.util.regex.Pattern
 
 //(TODO: Look at handler and callback (not working)
 //TODO: Look at permission requesting (not working))
-//TODO: Look at companion binding / filter (not working)
+//TODO: test/implement onActivityResult() from deviceManager callback, manage requirements properly
 
 class MainActivity : AppCompatActivity() {
 
@@ -50,7 +53,7 @@ class MainActivity : AppCompatActivity() {
                                       Manifest.permission.ACCESS_FINE_LOCATION,
                                       Manifest.permission.ACCESS_COARSE_LOCATION*/)
     private val blePermissionsRequestCode = 1
-    private val selectDeviceRequestCode = 1
+    private val selectDeviceRequestCode = 2
 
     private var devices : MutableList<BluetoothDevice> = arrayListOf()
 
@@ -65,26 +68,8 @@ class MainActivity : AppCompatActivity() {
         // Find only devices that match this request filter.
         .addDeviceFilter(deviceFilter)
         // Stop scanning as soon as one device matching the filter is found.
-        .setSingleDevice(true)
+        .setSingleDevice(false)
         .build()
-
-    private val deviceManager =
-        requireContext().getSystemService(Context.COMPANION_DEVICE_SERVICE)
-
-    deviceManager.associate(pairingRequest,
-        object : CompanionDeviceManager.Callback() {
-            // Called when a device is found. Launch the IntentSender so the user
-            // can select the device they want to pair with.
-            override fun onDeviceFound(chooserLauncher: IntentSender) {
-                startIntentSenderForResult(chooserLauncher,
-                    selectDeviceRequestCode, null, 0, 0, 0)
-            }
-
-            override fun onFailure(error: CharSequence?) {
-                // Handle the failure.
-            }
-    }, null)
-
 
     // Device scan callback
     private val leScanCallback: ScanCallback = object : ScanCallback() {
@@ -124,6 +109,23 @@ class MainActivity : AppCompatActivity() {
             //checkPermissions(permissions, blePermissionsRequestCode)
             ActivityCompat.requestPermissions(this, permissions, blePermissionsRequestCode)
         }
+
+        val deviceManager = getSystemService(CompanionDeviceManager::class.java)
+
+        deviceManager.associate(pairingRequest,
+            object : CompanionDeviceManager.Callback() {
+                // Called when a device is found. Launch the IntentSender so the user
+                // can select the device they want to pair with.
+                @Deprecated("Deprecated in Java")
+                override fun onDeviceFound(chooserLauncher: IntentSender) {
+                    startIntentSenderForResult(chooserLauncher,
+                        selectDeviceRequestCode, null, 0, 0, 0)
+                }
+
+                override fun onFailure(error: CharSequence?) {
+                    Toast.makeText(applicationContext, error, Toast.LENGTH_LONG).show()
+                }
+            }, null)
     }
 
     @SuppressLint("MissingPermission") //permissions are checked before call of this method
@@ -189,6 +191,22 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             Toast.makeText(this, "Failed giving permissions!", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    @SuppressLint("MissingPermission") //Permissions already granted before
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        when (requestCode) {
+            selectDeviceRequestCode -> when(resultCode) {
+                Activity.RESULT_OK -> {
+                    // The user chose to pair the app with a Bluetooth device.
+                    val deviceToPair: BluetoothDevice? =
+                        data?.getParcelableExtra(CompanionDeviceManager.EXTRA_DEVICE)
+                    deviceToPair?.createBond()
+                }
+            }
+            else -> super.onActivityResult(requestCode, resultCode, data)
         }
     }
 }
