@@ -40,77 +40,40 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding:ActivityMainBinding
 
-    private lateinit var adapter : BleAdapter
-
-    private val bluetoothAdapter : BluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-    private val bluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner
-    private var scanning = false
-    private val handler = Handler()
-
     private val permissions = arrayOf(Manifest.permission.BLUETOOTH,
                                       Manifest.permission.BLUETOOTH_ADMIN,
                                       /*Manifest.permission.ACCESS_BACKGROUND_LOCATION,
                                       Manifest.permission.ACCESS_FINE_LOCATION,
                                       Manifest.permission.ACCESS_COARSE_LOCATION*/)
-    private val blePermissionsRequestCode = 1
-    private val selectDeviceRequestCode = 2
 
-    private var devices : MutableList<BluetoothDevice> = arrayListOf()
 
-    private val deviceFilter: BluetoothLeDeviceFilter = BluetoothLeDeviceFilter.Builder()
-        // Match only Bluetooth devices whose name matches the pattern.
-        .setNamePattern(Pattern.compile("BBC micro:bit CMSIS-DAP"))
-        // Match only Bluetooth devices whose service UUID matches this pattern.
-        /*.addServiceUuid(ParcelUuid(UUID(0x123abcL, -1L)), null)*/
-        .build()
-
-    private val pairingRequest: AssociationRequest = AssociationRequest.Builder()
-        // Find only devices that match this request filter.
-        .addDeviceFilter(deviceFilter)
-        // Stop scanning as soon as one device matching the filter is found.
-        .setSingleDevice(false)
-        .build()
-
-    // Device scan callback
-    private val leScanCallback: ScanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            super.onScanResult(callbackType, result)
-
-            Toast.makeText(applicationContext, "onScanResult()", Toast.LENGTH_LONG).show()
-            if (result.device != null) {
-                devices.add(result.device)
-                adapter.notifyDataSetChanged()
-                Toast.makeText(applicationContext, "Devices found!", Toast.LENGTH_LONG).show()
-            } else {
-                Toast.makeText(applicationContext, "No devices found!", Toast.LENGTH_LONG).show()
-            }
-
-        }
+    private val deviceManager: CompanionDeviceManager by lazy {
+        getSystemService(Context.COMPANION_DEVICE_SERVICE) as CompanionDeviceManager
     }
 
-    // Stops scanning after 10 seconds.
-    private val scanPeriod: Long = 10000
+    private val selectDeviceRequestCode = 1
+    private val blePermissionsRequestCode = 2
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        checkPermissions(permissions, blePermissionsRequestCode)
 
         //connect this activity with corresponding display
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // RecyclerView handling
-        val recyclerView = binding.devicesRecyclerView as RecyclerView
-        adapter = BleAdapter(devices)
-        recyclerView.adapter = adapter
-        recyclerView.layoutManager = LinearLayoutManager(this)
+        val deviceFilter: BluetoothLeDeviceFilter = BluetoothLeDeviceFilter.Builder()
+            // Match only Bluetooth devices whose name matches the pattern.
+            //.setNamePattern(Pattern.compile("BBC micro:bit CMSIS-DAP"))
+            .build()
 
-        //set OnClickListener for BLE-Button
-        binding.scanButton.setOnClickListener {
-            //checkPermissions(permissions, blePermissionsRequestCode)
-            ActivityCompat.requestPermissions(this, permissions, blePermissionsRequestCode)
-        }
-
-        val deviceManager = getSystemService(CompanionDeviceManager::class.java)
+        val pairingRequest: AssociationRequest = AssociationRequest.Builder()
+            // Find only devices that match this request filter.
+            .addDeviceFilter(deviceFilter)
+            // Stop scanning as soon as one device matching the filter is found.
+            .setSingleDevice(false)
+            .build()
 
         deviceManager.associate(pairingRequest,
             object : CompanionDeviceManager.Callback() {
@@ -128,28 +91,20 @@ class MainActivity : AppCompatActivity() {
             }, null)
     }
 
-    @SuppressLint("MissingPermission") //permissions are checked before call of this method
-    private fun scanBleDevice() {
-
-        Toast.makeText(applicationContext, "scanBleDevice()", Toast.LENGTH_LONG).show()
-        if (!scanning) { //Stops scanning after a pre-defined scan period.
-            handler.postDelayed({
-                scanning = false
-                Toast.makeText(applicationContext, "handler", Toast.LENGTH_LONG).show()
-                bluetoothLeScanner.stopScan(leScanCallback)
-                binding.scanButton.isEnabled = true
-            }, scanPeriod)
-            Toast.makeText(applicationContext, "after handler", Toast.LENGTH_LONG).show()
-            scanning = true
-            bluetoothLeScanner.startScan(leScanCallback)
-            //Toast.makeText(applicationContext, "Started scanning!", Toast.LENGTH_LONG).show()
-            binding.scanButton.isEnabled = false
-        } else {
-            Toast.makeText(applicationContext, "else", Toast.LENGTH_LONG).show()
-            scanning = false
-            bluetoothLeScanner.stopScan(leScanCallback)
-            binding.scanButton.isEnabled = true
-            Toast.makeText(applicationContext, "Scanning done!", Toast.LENGTH_LONG).show()
+    @Deprecated("Deprecated in Java")
+    @SuppressLint("MissingPermission") //Permissions already granted before
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        when (requestCode) {
+            selectDeviceRequestCode -> when(resultCode) {
+                Activity.RESULT_OK -> {
+                    // The user chose to pair the app with a Bluetooth device.
+                    val deviceToPair: BluetoothDevice? =
+                        data?.getParcelableExtra(CompanionDeviceManager.EXTRA_DEVICE)
+                    deviceToPair?.createBond()
+                    // Continue to interact with the paired device.
+                }
+            }
+            else -> super.onActivityResult(requestCode, resultCode, data)
         }
     }
 
@@ -184,29 +139,13 @@ class MainActivity : AppCompatActivity() {
             }
             if (granted) {
                 Toast.makeText(this, "Scanning for ble devices...", Toast.LENGTH_LONG).show()
-                //scanBleDevice()
+                //...
             }
             else {
                 Toast.makeText(this, "Permissions denied!", Toast.LENGTH_LONG).show()
             }
         } else {
             Toast.makeText(this, "Failed giving permissions!", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    @Deprecated("Deprecated in Java")
-    @SuppressLint("MissingPermission") //Permissions already granted before
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        when (requestCode) {
-            selectDeviceRequestCode -> when(resultCode) {
-                Activity.RESULT_OK -> {
-                    // The user chose to pair the app with a Bluetooth device.
-                    val deviceToPair: BluetoothDevice? =
-                        data?.getParcelableExtra(CompanionDeviceManager.EXTRA_DEVICE)
-                    deviceToPair?.createBond()
-                }
-            }
-            else -> super.onActivityResult(requestCode, resultCode, data)
         }
     }
 }
