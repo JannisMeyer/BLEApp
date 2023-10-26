@@ -3,12 +3,14 @@ package com.example.bleapp
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.le.ScanResult
 import android.companion.AssociationRequest
 import android.companion.BluetoothLeDeviceFilter
 import android.companion.CompanionDeviceManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Build
@@ -20,7 +22,7 @@ import androidx.core.app.ActivityCompat
 import com.example.bleapp.databinding.ActivityMainBinding
 import java.util.*
 
-//TODO: look at pairing
+//TODO: look at sending data to bonded device
 
 class MainActivity : AppCompatActivity() {
 
@@ -38,6 +40,8 @@ class MainActivity : AppCompatActivity() {
     private val deviceManager: CompanionDeviceManager by lazy {
         getSystemService(Context.COMPANION_DEVICE_SERVICE) as CompanionDeviceManager
     }
+
+    private val bondStateReceiver = BondStateReceiver()
 
     private val selectDeviceRequestCode = 1
     private val bluetoothPermissionsRequestCode = 2
@@ -65,6 +69,10 @@ class MainActivity : AppCompatActivity() {
             // Stop scanning as soon as one device matching the filter is found.
             .setSingleDevice(false)
             .build()
+
+        val filter = IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
+        registerReceiver(bondStateReceiver, filter)
+
 
         binding.scanButton.setOnClickListener() {
             deviceManager.associate(pairingRequest,
@@ -94,7 +102,7 @@ class MainActivity : AppCompatActivity() {
                     val scanResult: ScanResult? =
                         data?.getParcelableExtra(CompanionDeviceManager.EXTRA_DEVICE)
                     if (scanResult?.device?.createBond() == true) {
-                        Toast.makeText(this, "device bonding started...", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this, "Starting device bonding...", Toast.LENGTH_LONG).show()
                     }
                     else {
                         Toast.makeText(this, "Failed to start device bonding!", Toast.LENGTH_LONG).show()
@@ -112,7 +120,7 @@ class MainActivity : AppCompatActivity() {
                 Manifest.permission.BLUETOOTH_SCAN
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            shouldShowRequestPermissionRationale("test")
+            //shouldShowRequestPermissionRationale("test")
             ActivityCompat.requestPermissions(this, permissions, requestCode)
         }
     }
@@ -159,5 +167,11 @@ class MainActivity : AppCompatActivity() {
         } else {
             Toast.makeText(this, "Failed giving permissions!", Toast.LENGTH_LONG).show()
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+
+        unregisterReceiver(bondStateReceiver)
     }
 }
