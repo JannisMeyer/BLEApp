@@ -7,7 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 
-class BondStateReceiver : BroadcastReceiver() {
+/*class BonndStateReceiver : BroadcastReceiver() {
     @SuppressLint("MissingPermission")
     override fun onReceive(context: Context?, intent: Intent?) {
         val action = intent?.action
@@ -22,6 +22,9 @@ class BondStateReceiver : BroadcastReceiver() {
                     if (device != null) {
                         Toast.makeText(context, "bonded to "+device.name.toString(), Toast.LENGTH_LONG).show()
                         MainActivity.bonded = true
+                        if (context != null) {
+                            MainActivity.setupGattConnection(device.name, context)
+                        }
                     }
                 }
                 BluetoothDevice.BOND_NONE -> {
@@ -30,4 +33,4 @@ class BondStateReceiver : BroadcastReceiver() {
             }
         }
     }
-}
+}*/

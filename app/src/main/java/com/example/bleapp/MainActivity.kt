@@ -5,10 +5,12 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.le.ScanResult
 import android.companion.AssociationRequest
 import android.companion.BluetoothLeDeviceFilter
 import android.companion.CompanionDeviceManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -26,10 +28,41 @@ import java.util.*
 import java.util.regex.Pattern
 
 
-//TODO: look at sending data to bonded device
-//TODO: check if bluetooth and location is enabled before scanning
 
 class MainActivity : AppCompatActivity() {
+
+    private val bondStateReceiver = object : BroadcastReceiver() {
+        @SuppressLint("MissingPermission")
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val action = intent?.action
+            if (BluetoothDevice.ACTION_BOND_STATE_CHANGED == action) {
+                val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
+
+                when (intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.BOND_NONE)) {
+                    BluetoothDevice.BOND_BONDING -> {
+                        Toast.makeText(context, "bonding...", Toast.LENGTH_LONG).show()
+                    }
+                    BluetoothDevice.BOND_BONDED -> {
+                        if (device != null) {
+                            Toast.makeText(context, "bonded to "+device.name.toString(), Toast.LENGTH_LONG).show()
+                            bonded = true
+                            if (context != null) {
+                                setupGattConnection(device.address, context)
+                            }
+                        }
+                    }
+                    BluetoothDevice.BOND_NONE -> {
+                        Toast.makeText(context, "No bond!", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+    }
+
+    //companion object to recall bond state
+    companion object {
+        var bonded: Boolean = false
+    }
 
     private lateinit var binding:ActivityMainBinding
 
@@ -48,8 +81,6 @@ class MainActivity : AppCompatActivity() {
     private val deviceManager: CompanionDeviceManager by lazy {
         getSystemService(Context.COMPANION_DEVICE_SERVICE) as CompanionDeviceManager
     }
-
-    private val bondStateReceiver = BondStateReceiver()
 
     private val selectDeviceRequestCode = 1
     private val bluetoothPermissionsRequestCode = 2
@@ -87,11 +118,13 @@ class MainActivity : AppCompatActivity() {
 
         //set On-Click Listener for scanning button
         binding.scanButton.setOnClickListener() {
+            //Toast.makeText(this, "click", Toast.LENGTH_LONG).show()
             if (bluetoothAdapter.isEnabled && locationManager.isLocationEnabled) {
                 deviceManager.associate(pairingRequest,
                     object : CompanionDeviceManager.Callback() { //Called when a device is found, launch the IntentSender so the user can select the device they want to pair with
                         @Deprecated("Deprecated in Java")
                         override fun onDeviceFound(chooserLauncher: IntentSender) {
+                            //Toast.makeText(applicationContext, "onDeviceFound()", Toast.LENGTH_LONG).show()
                             startIntentSenderForResult(chooserLauncher,
                                 selectDeviceRequestCode, null, 0, 0, 0)
                         }
@@ -112,6 +145,7 @@ class MainActivity : AppCompatActivity() {
     @Deprecated("Deprecated in Java")
     @SuppressLint("MissingPermission") //Permissions already granted before
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        //Toast.makeText(this, "onActivityResult()", Toast.LENGTH_LONG).show()
         when (requestCode) {
             selectDeviceRequestCode -> when(resultCode) {
                 Activity.RESULT_OK -> {
@@ -135,7 +169,7 @@ class MainActivity : AppCompatActivity() {
         //Iterate through required permissions and request them if needed
         for (item in permissions) {
             if (ActivityCompat.checkSelfPermission(this, item) != PackageManager.PERMISSION_GRANTED) {
-                shouldShowRequestPermissionRationale("test")
+                //shouldShowRequestPermissionRationale("test")
                 ActivityCompat.requestPermissions(this, permissions, requestCode)
                 break
             }
@@ -189,6 +223,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @SuppressLint("MissingPermission") //permissions given before
+    fun setupGattConnection(deviceName:String, context:Context) {
+
+        val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        val device = bluetoothAdapter.getRemoteDevice(deviceName)
+        val gattCallback = object : BluetoothGattCallback() {
+            // Callback-Funktionen für Verbindungsstatus, Service-Entdeckung, Datenübertragung, etc.
+        }
+
+        val gatt = device.connectGatt(context, false, gattCallback)
+
+        //TODO: manage device connection after bonding
+    }
+
     override fun onDestroy() {
         super.onDestroy()
 
@@ -196,8 +244,8 @@ class MainActivity : AppCompatActivity() {
         unregisterReceiver(bondStateReceiver)
     }
 
-    //companion object to recall bond state
-    companion object {
-        var bonded: Boolean = false
+    override fun onResume() {
+        super.onResume()
+        //Toast.makeText(this, "test", Toast.LENGTH_LONG).show()
     }
 }
