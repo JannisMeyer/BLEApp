@@ -21,6 +21,7 @@ class BondStateReceiver : BroadcastReceiver() {
                 BluetoothDevice.BOND_BONDED -> {
                     if (device != null) {
                         Toast.makeText(context, "bonded to "+device.name.toString(), Toast.LENGTH_LONG).show()
+                        MainActivity.bonded = true
                     }
                 }
                 BluetoothDevice.BOND_NONE -> {

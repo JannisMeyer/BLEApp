@@ -3,6 +3,7 @@ package com.example.bleapp
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.le.ScanResult
 import android.companion.AssociationRequest
@@ -13,6 +14,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.IntentSender
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -21,22 +23,28 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.example.bleapp.databinding.ActivityMainBinding
 import java.util.*
+import java.util.regex.Pattern
+
 
 //TODO: look at sending data to bonded device
+//TODO: check if bluetooth and location is enabled before scanning
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding:ActivityMainBinding
 
     //permissions needed for companion device binding
-    private val bluetoothPermissions = arrayOf(Manifest.permission.BLUETOOTH,
-                                               Manifest.permission.BLUETOOTH_ADMIN,)
+    private val bluetoothPermissions = arrayOf(
+        Manifest.permission.BLUETOOTH,
+        Manifest.permission.BLUETOOTH_ADMIN,
+    )
 
     private val locationPermissions = arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION,
                                               Manifest.permission.ACCESS_FINE_LOCATION,
                                               Manifest.permission.ACCESS_COARSE_LOCATION)
 
 
+    ////set up instances and variables for ble device finding and pairing
     private val deviceManager: CompanionDeviceManager by lazy {
         getSystemService(Context.COMPANION_DEVICE_SERVICE) as CompanionDeviceManager
     }
@@ -50,17 +58,17 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        checkPermissions(bluetoothPermissions, bluetoothPermissionsRequestCode)
-        //location permissions have to be requested separately
-        checkPermissions(locationPermissions, locationPermissionsRequestCode)
-
         //connect this activity with corresponding display
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        //Check required permissions
+        checkPermissions(locationPermissions, locationPermissionsRequestCode) //location permissions have to be requested separately
+        checkPermissions(bluetoothPermissions, bluetoothPermissionsRequestCode)
+
+        //set up instances for ble device finding and pairing
         val deviceFilter: BluetoothLeDeviceFilter = BluetoothLeDeviceFilter.Builder()
-            // Match only Bluetooth devices whose name matches the pattern.
-            //.setNamePattern(Pattern.compile("BBC micro:bit CMSIS-DAP"))
+            .setNamePattern(Pattern.compile("BBC micro:bit *"))
             .build()
 
         val pairingRequest: AssociationRequest = AssociationRequest.Builder()
@@ -73,23 +81,32 @@ class MainActivity : AppCompatActivity() {
         val filter = IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
         registerReceiver(bondStateReceiver, filter)
 
+        val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        val locationManager = this.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
+
+        //set On-Click Listener for scanning button
         binding.scanButton.setOnClickListener() {
-            deviceManager.associate(pairingRequest,
-                object : CompanionDeviceManager.Callback() {
-                    // Called when a device is found. Launch the IntentSender so the user
-                    // can select the device they want to pair with.
-                    @Deprecated("Deprecated in Java")
-                    override fun onDeviceFound(chooserLauncher: IntentSender) {
-                        startIntentSenderForResult(chooserLauncher,
-                            selectDeviceRequestCode, null, 0, 0, 0)
-                    }
+            if (bluetoothAdapter.isEnabled && locationManager.isLocationEnabled) {
+                deviceManager.associate(pairingRequest,
+                    object : CompanionDeviceManager.Callback() { //Called when a device is found, launch the IntentSender so the user can select the device they want to pair with
+                        @Deprecated("Deprecated in Java")
+                        override fun onDeviceFound(chooserLauncher: IntentSender) {
+                            startIntentSenderForResult(chooserLauncher,
+                                selectDeviceRequestCode, null, 0, 0, 0)
+                        }
 
-                    override fun onFailure(error: CharSequence?) {
-                        Toast.makeText(applicationContext, error, Toast.LENGTH_LONG).show()
-                    }
-                }, null)
+                        override fun onFailure(error: CharSequence?) {
+                            Toast.makeText(applicationContext, error, Toast.LENGTH_LONG).show()
+                        }
+                    }, null)
+            }
+            else {
+                Toast.makeText(this, "Bluetooth or Location not enabled!", Toast.LENGTH_LONG).show()
+            }
+
         }
+        binding.scanButton.isEnabled = !bonded
     }
 
     @Deprecated("Deprecated in Java")
@@ -98,7 +115,7 @@ class MainActivity : AppCompatActivity() {
         when (requestCode) {
             selectDeviceRequestCode -> when(resultCode) {
                 Activity.RESULT_OK -> {
-                    // The user chose to pair the app with a Bluetooth device.
+                    // The user chose to pair the app with a Bluetooth device
                     val scanResult: ScanResult? =
                         data?.getParcelableExtra(CompanionDeviceManager.EXTRA_DEVICE)
                     if (scanResult?.device?.createBond() == true) {
@@ -115,13 +132,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkPermissions(permissions: Array<out String>, requestCode: Int) {
 
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.BLUETOOTH_SCAN
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            //shouldShowRequestPermissionRationale("test")
-            ActivityCompat.requestPermissions(this, permissions, requestCode)
+        //Iterate through required permissions and request them if needed
+        for (item in permissions) {
+            if (ActivityCompat.checkSelfPermission(this, item) != PackageManager.PERMISSION_GRANTED) {
+                shouldShowRequestPermissionRationale("test")
+                ActivityCompat.requestPermissions(this, permissions, requestCode)
+                break
+            }
         }
     }
 
@@ -133,6 +150,7 @@ class MainActivity : AppCompatActivity() {
 
         var test = 0
 
+        //case of bluetooth permissions
         if (requestCode == bluetoothPermissionsRequestCode && grantResults.isNotEmpty()) {
             for (item in grantResults) {
                 if (item == PackageManager.PERMISSION_DENIED) {
@@ -149,11 +167,12 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Bluetooth permissions denied!", Toast.LENGTH_LONG).show()
             }
         }
-        else if (requestCode == locationPermissionsRequestCode && grantResults.isNotEmpty()) { //grantResults are empty?
+        //case of location permissions
+        else if (requestCode == locationPermissionsRequestCode && grantResults.isNotEmpty()) {
             for (item in grantResults) {
                 if (item == PackageManager.PERMISSION_DENIED) {
                     granted = false
-                    Toast.makeText(this, item.toString() + test.toString(), Toast.LENGTH_LONG)
+                    Toast.makeText(this, "$item $test", Toast.LENGTH_LONG)
                         .show()
                     break;
                 }
@@ -164,6 +183,7 @@ class MainActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(this, "Location permissions denied!", Toast.LENGTH_LONG).show()
             }
+        //case of fail
         } else {
             Toast.makeText(this, "Failed giving permissions!", Toast.LENGTH_LONG).show()
         }
@@ -172,6 +192,12 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
 
+        //Bond State Receiver has to be unregistered after use to prevent memory leaks
         unregisterReceiver(bondStateReceiver)
+    }
+
+    //companion object to recall bond state
+    companion object {
+        var bonded: Boolean = false
     }
 }
