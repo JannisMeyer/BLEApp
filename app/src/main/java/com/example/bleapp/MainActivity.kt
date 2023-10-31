@@ -3,22 +3,18 @@ package com.example.bleapp
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.*
 import android.bluetooth.le.ScanResult
 import android.companion.AssociationRequest
 import android.companion.BluetoothLeDeviceFilter
 import android.companion.CompanionDeviceManager
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.content.IntentSender
+import android.content.*
+import android.content.ContentValues.TAG
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
@@ -26,7 +22,6 @@ import androidx.core.app.ActivityCompat
 import com.example.bleapp.databinding.ActivityMainBinding
 import java.util.*
 import java.util.regex.Pattern
-
 
 
 class MainActivity : AppCompatActivity() {
@@ -229,12 +224,51 @@ class MainActivity : AppCompatActivity() {
         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
         val device = bluetoothAdapter.getRemoteDevice(deviceName)
         val gattCallback = object : BluetoothGattCallback() {
-            // Callback-Funktionen für Verbindungsstatus, Service-Entdeckung, Datenübertragung, etc.
+
+            override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+                if (status == BluetoothGatt.GATT_SUCCESS)
+                if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    Log.i(TAG, "BluetoothDevice CONNECTED: $device")
+                    gatt?.discoverServices()
+                } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                    Log.i(TAG, "BluetoothDevice DISCONNECTED: $device")
+                }
+            }
+
+            override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
+                super.onServicesDiscovered(gatt, status)
+
+                val service = gatt!!.getService(UUID.fromString("0000180A-0000-1000-8000-00805F9B34FB")) //UUID for Device Information Service
+
+                if (status == BluetoothGatt.GATT_SUCCESS) { //GATT-Operation successfull (discovery of services)
+
+                    Log.e(TAG, "successfully discovered services");
+
+                    val characteristic = service.getCharacteristic(UUID.fromString("00002A29-0000-1000-8000-00805F9B34FB")) //UUID for Manufacturer Name
+
+                    Log.e(TAG, "got characteristic with uuid: " + characteristic.uuid.toString())
+
+                    //TODO: Read value from micro:bit
+                }
+            }
+
+            override fun onCharacteristicWrite(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?, status: Int) {
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+
+                }
+            }
+            @Deprecated("Deprecated in Java")
+            override fun onCharacteristicRead(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic, status: Int) {
+                val value = characteristic.getStringValue(0)
+                Log.e(TAG, "onCharacteristicRead: " + value + " UUID " + characteristic.uuid.toString())
+            }
+
         }
 
+
+        //connect to gatt
         val gatt = device.connectGatt(context, false, gattCallback)
 
-        //TODO: manage device connection after bonding
     }
 
     override fun onDestroy() {
