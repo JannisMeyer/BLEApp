@@ -35,19 +35,19 @@ class MainActivity : AppCompatActivity() {
 
                 when (intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.BOND_NONE)) {
                     BluetoothDevice.BOND_BONDING -> {
-                        Toast.makeText(context, "bonding...", Toast.LENGTH_LONG).show()
+                        Log.i(TAG, "Bonding...")
                     }
                     BluetoothDevice.BOND_BONDED -> {
                         if (device != null) {
-                            Toast.makeText(context, "bonded to "+device.name.toString(), Toast.LENGTH_LONG).show()
+                            Log.i(TAG, "Bonded to " + device.name + "!")
                             bonded = true
-                            if (context != null) {
+                            if (context != null && !gattConnected) {
                                 setupGattConnection(device.address, context)
                             }
                         }
                     }
                     BluetoothDevice.BOND_NONE -> {
-                        Toast.makeText(context, "No bond!", Toast.LENGTH_LONG).show()
+                        Log.i(TAG, "No bond!")
                     }
                 }
             }
@@ -56,7 +56,8 @@ class MainActivity : AppCompatActivity() {
 
     //companion object to recall bond state
     companion object {
-        var bonded: Boolean = false
+        var bonded = false
+        var gattConnected = false
     }
 
     private lateinit var binding:ActivityMainBinding
@@ -81,8 +82,11 @@ class MainActivity : AppCompatActivity() {
     private val bluetoothPermissionsRequestCode = 2
     private val locationPermissionsRequestCode = 3
 
+    @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        Log.i(TAG, "onCreate()")
 
         //connect this activity with corresponding display
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -110,6 +114,37 @@ class MainActivity : AppCompatActivity() {
         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
         val locationManager = this.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
+        //Check if micro:bit/other devices are already bonded (bonded != connected!!!)
+        if (bluetoothAdapter != null && bluetoothAdapter.isEnabled && locationManager.isLocationEnabled) {
+            val pairedDevices = bluetoothAdapter.bondedDevices
+
+            if (pairedDevices != null) {
+                for (device in pairedDevices) {
+                    Log.i(TAG, device.name + ' ' + device.address)
+                    if (device.name == "BBC micro:bit") {
+                        bonded = true //to deactivate the scanning button
+                        Log.i(TAG, "micro:bit already bonded!")
+                        if (!gattConnected) {
+                            Log.i(TAG, "Creating gatt connection to micro:bit...")
+                            setupGattConnection(device.address, this)
+                        }
+                        else {
+                            Log.i(TAG, "micro:bit already connected!")
+                        }
+                        break
+                    }
+                }
+                if (!bonded) {
+                    Log.w(TAG, "Other device than micro:bit bonded, please unbond in bluetooth settings!")
+                }
+            }
+            else {
+                Log.i(TAG, "No device bonded!")
+            }
+        } else {
+            Log.e(TAG, "Bluetooth not available/activated!")
+        }
+
 
         //set On-Click Listener for scanning button
         binding.scanButton.setOnClickListener() {
@@ -131,6 +166,7 @@ class MainActivity : AppCompatActivity() {
             }
             else {
                 Toast.makeText(this, "Bluetooth or Location not enabled!", Toast.LENGTH_LONG).show()
+                Log.w(TAG, "Bluetooth or Location not enabled!")
             }
 
         }
@@ -148,10 +184,10 @@ class MainActivity : AppCompatActivity() {
                     val scanResult: ScanResult? =
                         data?.getParcelableExtra(CompanionDeviceManager.EXTRA_DEVICE)
                     if (scanResult?.device?.createBond() == true) {
-                        Toast.makeText(this, "Starting device bonding...", Toast.LENGTH_LONG).show()
+                        Log.i(TAG, "Initiating device connection...")
                     }
                     else {
-                        Toast.makeText(this, "Failed to start device bonding!", Toast.LENGTH_LONG).show()
+                        Log.e(TAG, "Failed to initiate device bonding!")
                     }
                 }
             }
@@ -191,9 +227,9 @@ class MainActivity : AppCompatActivity() {
                 test++
             }
             if (granted) {
-                Toast.makeText(this, "Bluetooth permissions granted!", Toast.LENGTH_LONG).show()
+                Log.i(TAG, "Bluetooth permissions granted!")
             } else {
-                Toast.makeText(this, "Bluetooth permissions denied!", Toast.LENGTH_LONG).show()
+                Log.i(TAG, "Bluetooth permissions denied!")
             }
         }
         //case of location permissions
@@ -208,13 +244,14 @@ class MainActivity : AppCompatActivity() {
                 test++
             }
             if (granted) {
-                Toast.makeText(this, "Location permissions granted!", Toast.LENGTH_LONG).show()
+                Log.i(TAG, "Location permissions granted!")
             } else {
-                Toast.makeText(this, "Location permissions denied!", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Location permissions denied! Please activate location permissions in settings!", Toast.LENGTH_LONG).show()
+                Log.w(TAG, "Location permissions denied!")
             }
         //case of fail
         } else {
-            Toast.makeText(this, "Failed giving permissions!", Toast.LENGTH_LONG).show()
+            Log.e(TAG, "Failed to give permissions!")
         }
     }
 
@@ -228,9 +265,11 @@ class MainActivity : AppCompatActivity() {
             override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
                 if (status == BluetoothGatt.GATT_SUCCESS)
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    gattConnected = true
                     Log.i(TAG, "BluetoothDevice CONNECTED: $device")
                     gatt?.discoverServices()
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                    gattConnected = false
                     Log.i(TAG, "BluetoothDevice DISCONNECTED: $device")
                 }
             }
@@ -238,33 +277,40 @@ class MainActivity : AppCompatActivity() {
             override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
                 super.onServicesDiscovered(gatt, status)
 
-                val service = gatt!!.getService(UUID.fromString("0000180A-0000-1000-8000-00805F9B34FB")) //UUID for Device Information Service
-
                 if (status == BluetoothGatt.GATT_SUCCESS) { //GATT-Operation successfull (discovery of services)
+                    for (item in gatt!!.services) {
+                        Log.v(TAG, "got service with uuid: " + item.uuid)
+                        for (item2 in item.characteristics) {
+                            Log.v(TAG, "    got characteristic with uuid: " + item2.uuid)
+                        }
+                    }
 
-                    Log.e(TAG, "successfully discovered services");
+                    val service = gatt!!.getService(UUID.fromString("0000180A-0000-1000-8000-00805F9B34FB")) //UUID for Device Information Service on nRF52833 chip (micro:bit)
+
+                    /*Log.i(TAG, "successfully discovered services");
 
                     val characteristic = service.getCharacteristic(UUID.fromString("00002A29-0000-1000-8000-00805F9B34FB")) //UUID for Manufacturer Name
 
-                    Log.e(TAG, "got characteristic with uuid: " + characteristic.uuid.toString())
+                    Log.i(TAG, "got characteristic with uuid: " + characteristic.uuid.toString())*/
 
-                    //TODO: Read value from micro:bit
+                    //TODO: Use characteristics
                 }
             }
 
             override fun onCharacteristicWrite(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?, status: Int) {
-                if (status == BluetoothGatt.GATT_SUCCESS) {
+                if (status == BluetoothGatt.GATT_SUCCESS) { //GATT-Operation successfull (writing characteristic)
 
                 }
             }
+
             @Deprecated("Deprecated in Java")
             override fun onCharacteristicRead(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic, status: Int) {
-                val value = characteristic.getStringValue(0)
-                Log.e(TAG, "onCharacteristicRead: " + value + " UUID " + characteristic.uuid.toString())
+                if (status == BluetoothGatt.GATT_SUCCESS) { //GATT-Operation successfull (reading characteristic)
+                    val value = characteristic.getStringValue(0)
+                    Log.i(TAG, "onCharacteristicRead: " + value + " UUID " + characteristic.uuid.toString())
+                }
             }
-
         }
-
 
         //connect to gatt
         val gatt = device.connectGatt(context, false, gattCallback)
@@ -278,8 +324,45 @@ class MainActivity : AppCompatActivity() {
         unregisterReceiver(bondStateReceiver)
     }
 
+    @SuppressLint("MissingPermission") //Permissions granted before
     override fun onResume() {
         super.onResume()
-        //Toast.makeText(this, "test", Toast.LENGTH_LONG).show()
+
+        Log.i(TAG, "onResume()")
+
+        //Check bond status everytime the app resumes
+        val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        val locationManager = this.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+        //Check if micro:bit/other devices are already bonded (bonded != connected!!!)
+        if (bluetoothAdapter != null && bluetoothAdapter.isEnabled && locationManager.isLocationEnabled) {
+            val pairedDevices = bluetoothAdapter.bondedDevices
+
+            if (pairedDevices != null) {
+                for (device in pairedDevices) {
+                    Log.i(TAG, device.name + ' ' + device.address)
+                    if (device.name == "BBC micro:bit") {
+                        bonded = true //to deactivate the scanning button
+                        Log.i(TAG, "micro:bit already bonded!")
+                        if (!gattConnected) {
+                            Log.i(TAG, "Creating gatt connection to micro:bit...")
+                            //setupGattConnection(device.address, this)
+                        }
+                        else {
+                            Log.i(TAG, "micro:bit already connected!")
+                        }
+                        break
+                    }
+                }
+                if (!bonded) {
+                    Log.w(TAG, "Other device than micro:bit bonded, please unbond in bluetooth settings!")
+                }
+            }
+            else {
+                Log.i(TAG, "No device bonded!")
+            }
+        } else {
+            Log.i(TAG, "Bluetooth not available/activated!")
+        }
     }
 }
