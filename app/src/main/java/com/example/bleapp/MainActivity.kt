@@ -32,7 +32,6 @@ class MainActivity : AppCompatActivity() {
             val action = intent?.action
             if (BluetoothDevice.ACTION_BOND_STATE_CHANGED == action) {
                 val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
-
                 when (intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.BOND_NONE)) {
                     BluetoothDevice.BOND_BONDING -> {
                         Log.i(TAG, "Bonding...")
@@ -80,10 +79,6 @@ class MainActivity : AppCompatActivity() {
         getSystemService(Context.COMPANION_DEVICE_SERVICE) as CompanionDeviceManager
     }
 
-    private val selectDeviceRequestCode = 1
-    private val bluetoothPermissionsRequestCode = 2
-    private val locationPermissionsRequestCode = 3
-
     @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -95,8 +90,8 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         //Check required permissions
-        checkPermissions(locationPermissions, locationPermissionsRequestCode) //location permissions have to be requested separately
-        checkPermissions(bluetoothPermissions, bluetoothPermissionsRequestCode)
+        checkPermissions(locationPermissions, Defines.LOCATION_PERMISSIONS_REQUEST_CODE) //location permissions have to be requested separately
+        checkPermissions(bluetoothPermissions, Defines.BLUETOOTH_PERMISSIONS_REQUEST_CODE)
 
         //set up instances for ble device finding and pairing
         val deviceFilter: BluetoothLeDeviceFilter = BluetoothLeDeviceFilter.Builder()
@@ -158,7 +153,7 @@ class MainActivity : AppCompatActivity() {
                         override fun onDeviceFound(chooserLauncher: IntentSender) {
                             //Toast.makeText(applicationContext, "onDeviceFound()", Toast.LENGTH_LONG).show()
                             startIntentSenderForResult(chooserLauncher,
-                                selectDeviceRequestCode, null, 0, 0, 0)
+                                Defines.SELECT_DEVICE_REQUEST_CODE, null, 0, 0, 0)
                         }
 
                         override fun onFailure(error: CharSequence?) {
@@ -180,7 +175,7 @@ class MainActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         //Toast.makeText(this, "onActivityResult()", Toast.LENGTH_LONG).show()
         when (requestCode) {
-            selectDeviceRequestCode -> when(resultCode) {
+            Defines.SELECT_DEVICE_REQUEST_CODE -> when(resultCode) {
                 Activity.RESULT_OK -> {
                     // The user chose to pair the app with a Bluetooth device
                     val scanResult: ScanResult? =
@@ -218,7 +213,7 @@ class MainActivity : AppCompatActivity() {
         var test = 0
 
         //case of bluetooth permissions
-        if (requestCode == bluetoothPermissionsRequestCode && grantResults.isNotEmpty()) {
+        if (requestCode == Defines.BLUETOOTH_PERMISSIONS_REQUEST_CODE && grantResults.isNotEmpty()) {
             for (item in grantResults) {
                 if (item == PackageManager.PERMISSION_DENIED) {
                     granted = false
@@ -235,7 +230,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         //case of location permissions
-        else if (requestCode == locationPermissionsRequestCode && grantResults.isNotEmpty()) {
+        else if (requestCode == Defines.LOCATION_PERMISSIONS_REQUEST_CODE && grantResults.isNotEmpty()) {
             for (item in grantResults) {
                 if (item == PackageManager.PERMISSION_DENIED) {
                     granted = false
@@ -287,21 +282,35 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
 
-                    val service = gatt!!.getService(UUID.fromString("0000180A-0000-1000-8000-00805F9B34FB")) //UUID for Device Information Service on nRF52833 chip (micro:bit)
+                    val service = gatt.getService(UUID.fromString(Defines.GENERIC_ACCESS_SERVICE))
 
-                    /*Log.i(TAG, "successfully discovered services");
+                    val characteristic = service.getCharacteristic(UUID.fromString(Defines.DEVICE_NAME))
 
-                    val characteristic = service.getCharacteristic(UUID.fromString("00002A29-0000-1000-8000-00805F9B34FB")) //UUID for Manufacturer Name
+                    Log.i(TAG, "got characteristic with uuid: " + characteristic.uuid.toString())
 
-                    Log.i(TAG, "got characteristic with uuid: " + characteristic.uuid.toString())*/
+                    gatt.readCharacteristic(characteristic)
 
-                    //TODO: Use characteristics
+                    //TODO: Get writing data to work
+
+                    val service2 = gatt.getService(UUID.fromString(Defines.LED_SERVICE_2))
+
+                    val characteristic2 = service2.getCharacteristic(UUID.fromString(Defines.LED_TEXT))
+
+                    characteristic2.value="Test".toByteArray()
+                    characteristic2.writeType=BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+
+                    Log.i(TAG, "got characteristic with uuid: " + characteristic2.uuid.toString())
+
+                    gatt.writeCharacteristic(characteristic2)
                 }
             }
 
             override fun onCharacteristicWrite(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?, status: Int) {
                 if (status == BluetoothGatt.GATT_SUCCESS) { //GATT-Operation successfull (writing characteristic)
-
+                    Log.i(TAG, "Wrote data to micro:bit")
+                }
+                else {
+                    Log.e(TAG, "Failed to write data!")
                 }
             }
 
@@ -309,14 +318,13 @@ class MainActivity : AppCompatActivity() {
             override fun onCharacteristicRead(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic, status: Int) {
                 if (status == BluetoothGatt.GATT_SUCCESS) { //GATT-Operation successfull (reading characteristic)
                     val value = characteristic.getStringValue(0)
-                    Log.i(TAG, "onCharacteristicRead: " + value + " UUID " + characteristic.uuid.toString())
+                    Log.i(TAG, "Read data from micro:bit: $value")
+                }
+                else {
+                    Log.e(TAG, "Failed to read data!")
                 }
             }
         }
-
-        //connect to gatt
-        val gatt = device.connectGatt(context, false, gattCallback)
-
     }
 
     override fun onDestroy() {
@@ -336,7 +344,7 @@ class MainActivity : AppCompatActivity() {
         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
         val locationManager = this.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
-        //Check if micro:bit/other devices are already bonded (bonded != connected!!!)
+        //Check if micro:bit is already bonded (bonded != connected!!!)
         if (bluetoothAdapter != null && bluetoothAdapter.isEnabled && locationManager.isLocationEnabled) {
             val pairedDevices = bluetoothAdapter.bondedDevices
 
