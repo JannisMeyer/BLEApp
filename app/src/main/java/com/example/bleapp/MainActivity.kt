@@ -40,7 +40,9 @@ class MainActivity : AppCompatActivity() {
                     BluetoothDevice.BOND_BONDED -> {
                         if (device != null) {
                             Log.i(TAG, "Bonded to " + device.name + "!")
-                            bonded = true
+                            if (device.name == "BBC micro:bit") {
+                                bonded = true
+                            }
                             if (context != null && !gattConnected) {
                                 setupGattConnection(device.address, context)
                             }
@@ -121,7 +123,7 @@ class MainActivity : AppCompatActivity() {
             if (pairedDevices != null) {
                 for (device in pairedDevices) {
                     Log.i(TAG, device.name + ' ' + device.address)
-                    if (device.name == "BBC micro:bit") {
+                    if (device.name.contains("BBC micro:bit")) {
                         bonded = true //to deactivate the scanning button
                         Log.i(TAG, "micro:bit already bonded!")
                         if (!gattConnected) {
@@ -135,7 +137,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 if (!bonded) {
-                    Log.w(TAG, "Other device than micro:bit bonded, please unbond in bluetooth settings!")
+                    Log.w(TAG, "Not bonded to micro:bit!")
                 }
             }
             else {
@@ -341,7 +343,7 @@ class MainActivity : AppCompatActivity() {
             if (pairedDevices != null) {
                 for (device in pairedDevices) {
                     Log.i(TAG, device.name + ' ' + device.address)
-                    if (device.name == "BBC micro:bit") {
+                    if (device.name.contains("BBC micro:bit")) {
                         bonded = true //to deactivate the scanning button
                         Log.i(TAG, "micro:bit already bonded!")
                         if (!gattConnected) {
@@ -355,7 +357,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 if (!bonded) {
-                    Log.w(TAG, "Other device than micro:bit bonded, please unbond in bluetooth settings!")
+                    Log.w(TAG, "micro:bit not bonded!")
                 }
             }
             else {
