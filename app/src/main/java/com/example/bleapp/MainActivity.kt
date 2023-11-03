@@ -23,8 +23,11 @@ import com.example.bleapp.databinding.ActivityMainBinding
 import java.util.*
 import java.util.regex.Pattern
 
-
 class MainActivity : AppCompatActivity() {
+
+    //TODO: Add connect button
+    //TODO: Add unbond button, unbond every device when app closes
+    //TODO: Replace deprecated intent launch in onClickListener
 
     private val bondStateReceiver = object : BroadcastReceiver() {
         @SuppressLint("MissingPermission")
@@ -143,9 +146,8 @@ class MainActivity : AppCompatActivity() {
         }
 
 
-        //set On-Click Listener for scanning button
-        binding.scanButton.setOnClickListener() {
-            //Toast.makeText(this, "click", Toast.LENGTH_LONG).show()
+        //set OnClickListener for scan button
+        binding.scanButton.setOnClickListener {
             if (bluetoothAdapter.isEnabled && locationManager.isLocationEnabled) {
                 deviceManager.associate(pairingRequest,
                     object : CompanionDeviceManager.Callback() { //Called when a device is found, launch the IntentSender so the user can select the device they want to pair with
@@ -168,6 +170,29 @@ class MainActivity : AppCompatActivity() {
 
         }
         binding.scanButton.isEnabled = !bonded
+
+        //set OnClickListener for connect gatt button
+        binding.connectGattButton.setOnClickListener {
+            if (bluetoothAdapter != null && bluetoothAdapter.isEnabled && locationManager.isLocationEnabled) {
+                val pairedDevices = bluetoothAdapter.bondedDevices
+
+                if (pairedDevices != null) {
+                    for (device in pairedDevices) {
+                        if (device.name.contains("BBC micro:bit")) {
+                            Log.i(TAG, "Creating gatt connection to micro:bit...")
+                            setupGattConnection(device.address, this)
+                            break
+                        }
+                    }
+                }
+                else {
+                    Log.i(TAG, "No device bonded!")
+                }
+            } else {
+                Log.e(TAG, "Bluetooth not available/activated!")
+            }
+        }
+        binding.connectGattButton.isEnabled = !gattConnected
     }
 
     @Deprecated("Deprecated in Java")
@@ -181,7 +206,7 @@ class MainActivity : AppCompatActivity() {
                     val scanResult: ScanResult? =
                         data?.getParcelableExtra(CompanionDeviceManager.EXTRA_DEVICE)
                     if (scanResult?.device?.createBond() == true) {
-                        Log.i(TAG, "Initiating device connection...")
+                        Log.i(TAG, "Initiating device bonding...")
                     }
                     else {
                         Log.e(TAG, "Failed to initiate device bonding!")
@@ -257,17 +282,26 @@ class MainActivity : AppCompatActivity() {
 
         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
         val device = bluetoothAdapter.getRemoteDevice(deviceName)
+
         val gattCallback = object : BluetoothGattCallback() {
 
             override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
-                if (status == BluetoothGatt.GATT_SUCCESS)
-                if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    gattConnected = true
-                    Log.i(TAG, "BluetoothDevice CONNECTED: $device")
-                    gatt?.discoverServices()
-                } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                    gattConnected = false
-                    Log.i(TAG, "BluetoothDevice DISCONNECTED: $device")
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    if (newState == BluetoothProfile.STATE_CONNECTED) {
+                        gattConnected = true
+                        Log.i(TAG, "BluetoothDevice CONNECTED: $device")
+                        gatt?.discoverServices()
+                    } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                        gattConnected = false
+                        Log.i(TAG, "BluetoothDevice DISCONNECTED: $device")
+                    }
+                    else {
+                        gattConnected = false
+                        Log.e(TAG, "Unknown connect state!")
+                    }
+                }
+                else {
+                    Log.e(TAG, "gatt operation failed!")
                 }
             }
 
@@ -276,9 +310,9 @@ class MainActivity : AppCompatActivity() {
 
                 if (status == BluetoothGatt.GATT_SUCCESS) { //GATT-Operation successfull (discovery of services)
                     for (item in gatt!!.services) {
-                        Log.v(TAG, "got service with uuid: " + item.uuid)
+                        Log.i(TAG, "got service with uuid: " + item.uuid)
                         for (item2 in item.characteristics) {
-                            Log.v(TAG, "    got characteristic with uuid: " + item2.uuid)
+                            Log.i(TAG, "    got characteristic with uuid: " + item2.uuid)
                         }
                     }
 
@@ -325,6 +359,9 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+
+        //connect to gatt
+        val gatt = device.connectGatt(context, false, gattCallback)
     }
 
     override fun onDestroy() {
@@ -355,7 +392,7 @@ class MainActivity : AppCompatActivity() {
                         bonded = true //to deactivate the scanning button
                         Log.i(TAG, "micro:bit already bonded!")
                         if (!gattConnected) {
-                            Log.i(TAG, "Creating gatt connection to micro:bit...")
+                            //Log.i(TAG, "Creating gatt connection to micro:bit...")
                             //setupGattConnection(device.address, this)
                         }
                         else {

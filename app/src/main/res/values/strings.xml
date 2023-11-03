@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">BLEApp</string>
     <string name="scan_button_text">Scan</string>
+    <string name="connect_gatt_button_text">Connect GATT</string>
 </resources>
