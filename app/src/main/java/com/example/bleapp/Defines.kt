@@ -14,6 +14,8 @@ class Defines {
         var DEVICE_NAME_REQUEST = 0
         var MODEL_NUMBER_REQUEST = 1
         var FIRMWARE_REVISION_REQUEST = 2
+        var WRITE_LED_TEXT_REQUEST = 3
+        var WRITE_LED_REQUEST = 4
 
 
         //Bluetooth Services

@@ -14,6 +14,8 @@ import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
@@ -27,6 +29,8 @@ class MainActivity : AppCompatActivity() {
 
     //TODO: Add unbond button, unbond every device when app closes
     //TODO: Replace deprecated intent launch in onClickListener
+    //TODO: Add menu to Send Data Button and Receive Data Button
+    //TODO: Add continuous sending of data
 
     private val bondStateReceiver = object : BroadcastReceiver() {
         @SuppressLint("MissingPermission")
@@ -42,6 +46,7 @@ class MainActivity : AppCompatActivity() {
                         if (device != null) {
                             Log.i(TAG, "Bonded to " + device.name + "!")
                             if (device.name == "BBC micro:bit") {
+                                binding.bondStatusText.text = device.name
                                 bonded = true
                             }
                             if (context != null && !gattConnected) {
@@ -125,6 +130,7 @@ class MainActivity : AppCompatActivity() {
                     Log.i(TAG, device.name + ' ' + device.address)
                     if (device.name.contains("BBC micro:bit")) {
                         bonded = true //to deactivate the scanning button
+                        binding.bondStatusText.text = device.name
                         Log.i(TAG, "micro:bit already bonded!")
                         if (!gattConnected) {
                             Log.i(TAG, "Creating gatt connection to micro:bit...")
@@ -138,17 +144,20 @@ class MainActivity : AppCompatActivity() {
                 }
                 if (!bonded) {
                     Log.w(TAG, "Not bonded to micro:bit!")
+                    binding.bondStatusText.text = ""
                 }
             }
             else {
                 Log.i(TAG, "No device bonded!")
+                binding.bondStatusText.text = ""
             }
         } else {
             Log.e(TAG, "Bluetooth not available/activated!")
+            binding.bondStatusText.text = ""
         }
 
 
-        //set OnClickListener for scan button
+        //set OnClickListener for Scan Button
         binding.scanButton.setOnClickListener {
             if (bluetoothAdapter.isEnabled && locationManager.isLocationEnabled) {
                 deviceManager.associate(pairingRequest,
@@ -173,14 +182,14 @@ class MainActivity : AppCompatActivity() {
         }
         binding.scanButton.isEnabled = !bonded
 
-        //set OnClickListener for connect gatt button
+        //set OnClickListener for Connect Gatt Button
         binding.connectGattButton.setOnClickListener {
             if (bluetoothAdapter != null && bluetoothAdapter.isEnabled && locationManager.isLocationEnabled) {
                 val pairedDevices = bluetoothAdapter.bondedDevices
 
                 if (pairedDevices != null) {
                     for (device in pairedDevices) {
-                        if (device.name.contains("BBC micro:bit")) {
+                        if (device.name.contains("BBC micro:bit") && !gattConnected) {
                             Log.i(TAG, "Creating gatt connection to micro:bit...")
                             setupGattConnection(device.address, this)
                             break
@@ -195,6 +204,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
         binding.connectGattButton.isEnabled = !gattConnected
+
+        //set OnClickListener for Get Name Button
+        binding.receiveDataButton.setOnClickListener {
+            readBleData(Defines.DEVICE_NAME_REQUEST)
+
+            binding.receiveDataButton.isEnabled = gattConnected
+        }
+
+        //set OnClickListener for Send Data Button
+        binding.sendDataButton.setOnClickListener {
+            writeBleData(Defines.WRITE_LED_TEXT_REQUEST, "test")
+
+            binding.sendDataButton.isEnabled = gattConnected
+        }
     }
 
     @Deprecated("Deprecated in Java")
@@ -287,15 +310,15 @@ class MainActivity : AppCompatActivity() {
 
         when(paraService) {
 
-            0 -> {
+            Defines.DEVICE_NAME_REQUEST -> {
                 service = gatt.getService(UUID.fromString(Defines.GENERIC_ACCESS_SERVICE))
                 characteristic = service.getCharacteristic(UUID.fromString(Defines.DEVICE_NAME))
             }
-            1 -> {
+            Defines.MODEL_NUMBER_REQUEST -> {
                 service = gatt.getService(UUID.fromString(Defines.DEVICE_INFORMATION_SERVICE))
                 characteristic = service.getCharacteristic(UUID.fromString(Defines.MODEL_NUMBER))
             }
-            2 -> {
+            Defines.FIRMWARE_REVISION_REQUEST -> {
                 service = gatt.getService(UUID.fromString(Defines.DEVICE_INFORMATION_SERVICE))
                 characteristic = service.getCharacteristic(UUID.fromString(Defines.FIRMWARE_REVISION))
             }
@@ -303,17 +326,38 @@ class MainActivity : AppCompatActivity() {
 
         gatt.readCharacteristic(characteristic)
 
-        //handling of read data in onCharacteristicsRead
+        //handling of reading data in onCharacteristicsRead
     }
 
-    fun writeBleData(data : String) {
-        //TODO
+    @SuppressLint("MissingPermission")
+    fun writeBleData(paraService : Int, data : String) {
+
+        lateinit var service : BluetoothGattService
+        lateinit var characteristic : BluetoothGattCharacteristic
+
+        when(paraService) {
+
+            Defines.WRITE_LED_TEXT_REQUEST -> {
+                service = gatt.getService(UUID.fromString(Defines.LED_SERVICE_2))
+                characteristic = service.getCharacteristic(UUID.fromString(Defines.LED_TEXT))
+                characteristic.value = data.toByteArray()
+            }
+            Defines.WRITE_LED_REQUEST -> {
+                service = gatt.getService(UUID.fromString(Defines.LED_SERVICE_2))
+                characteristic = service.getCharacteristic(UUID.fromString(Defines.LED_MATRIX_STATE))
+                characteristic.value = "Test2".toByteArray()
+            }
+        }
+
+        characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+
+        gatt.writeCharacteristic(characteristic)
+
+        //handling of writing data in onCharacteristicsRead
     }
 
     @SuppressLint("MissingPermission") //permissions given before
     fun setupGattConnection(deviceAddress:String, context:Context) {
-
-        //TODO: Globalize gatt stuff
 
         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
         val device = bluetoothAdapter.getRemoteDevice(deviceAddress)
@@ -324,14 +368,17 @@ class MainActivity : AppCompatActivity() {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
                         gattConnected = true
+                        binding.gattStatusText.text = device.name
                         Log.i(TAG, "BluetoothDevice CONNECTED: $device")
                         gatt?.discoverServices()
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         gattConnected = false
+                        binding.gattStatusText.text = ""
                         Log.i(TAG, "BluetoothDevice DISCONNECTED: $device")
                     }
                     else {
                         gattConnected = false
+                        binding.gattStatusText.text = ""
                         Log.e(TAG, "Unknown connect state!")
                     }
                 }
@@ -351,27 +398,9 @@ class MainActivity : AppCompatActivity() {
                             Log.i(TAG, "    got characteristic with uuid: " + item2.uuid)
                         }
                     }
-
-                    //TODO: Move setup of characteristics in methods further above
-                    val service = paraGatt.getService(UUID.fromString(Defines.GENERIC_ACCESS_SERVICE))
-
-                    val characteristic = service.getCharacteristic(UUID.fromString(Defines.DEVICE_NAME))
-
-                    Log.i(TAG, "got characteristic with uuid: " + characteristic.uuid.toString())
-
-                    paraGatt.readCharacteristic(characteristic)
-
-                    //TODO: Get writing data to work
-                    val service2 = paraGatt.getService(UUID.fromString(Defines.LED_SERVICE_2))
-
-                    val characteristic2 = service2.getCharacteristic(UUID.fromString(Defines.LED_TEXT))
-
-                    characteristic2.value = "Test".toByteArray()
-                    characteristic2.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-
-                    Log.i(TAG, "got characteristic with uuid: " + characteristic2.uuid.toString())
-
-                    paraGatt.writeCharacteristic(characteristic2)
+                }
+                else {
+                    servicesDiscovered = false
                 }
             }
 
@@ -390,7 +419,12 @@ class MainActivity : AppCompatActivity() {
                     val value = characteristic.getStringValue(0)
                     Log.i(TAG, "Read data from micro:bit: $value")
                     binding.receivedData.text = value
-                    Toast.makeText(context, "New data received!", Toast.LENGTH_LONG).show()
+
+                    //Handler to main thread needed as toasts can only be shown in main ui thread
+                    val mainHandler = Handler(Looper.getMainLooper())
+                    mainHandler.post {
+                        Toast.makeText(applicationContext, "New data received!", Toast.LENGTH_LONG).show()
+                    }
                 }
                 else {
                     Log.e(TAG, "Failed to read data!")
@@ -419,7 +453,6 @@ class MainActivity : AppCompatActivity() {
 
         Log.i(TAG, "onResume()")
 
-        //Check bond status everytime the app resumes
         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
         val locationManager = this.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
@@ -432,10 +465,11 @@ class MainActivity : AppCompatActivity() {
                     Log.i(TAG, device.name + ' ' + device.address)
                     if (device.name.contains("BBC micro:bit")) {
                         bonded = true //to deactivate the scanning button
+                        binding.bondStatusText.text = device.name
                         Log.i(TAG, "micro:bit already bonded!")
                         if (!gattConnected) {
-                            //Log.i(TAG, "Creating gatt connection to micro:bit...")
-                            //setupGattConnection(device.address, this)
+                            Log.i(TAG, "Creating gatt connection to micro:bit...")
+                            setupGattConnection(device.address, this)
                         }
                         else {
                             Log.i(TAG, "micro:bit already connected!")
@@ -445,13 +479,16 @@ class MainActivity : AppCompatActivity() {
                 }
                 if (!bonded) {
                     Log.w(TAG, "micro:bit not bonded!")
+                    binding.bondStatusText.text = ""
                 }
             }
             else {
                 Log.i(TAG, "No device bonded!")
+                binding.bondStatusText.text = ""
             }
         } else {
-            Log.i(TAG, "Bluetooth not available/activated!")
+            Log.i(TAG, "Bluetooth or location not available/activated!")
+            binding.bondStatusText.text = ""
         }
     }
 }

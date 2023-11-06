@@ -2,6 +2,9 @@
     <string name="app_name">BLEApp</string>
     <string name="scan_button_text">Scan</string>
     <string name="connect_gatt_button_text">Connect GATT</string>
-    <string name="get_name_button_text">Get Device Name</string>
+    <string name="get_name_button_text">Receive data</string>
     <string name="received_data_headline_text">Received data</string>
+    <string name="send_data_button_text">Send data</string>
+    <string name="bond_status_headline_text">Bonded to:</string>
+    <string name="gatt_status_headline_text">Connected to:</string>
 </resources>

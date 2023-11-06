@@ -7,6 +7,48 @@
     tools:context=".MainActivity">
 
     <TextView
+        android:id="@+id/bond_status_text_headline"
+        android:layout_width="150dp"
+        android:layout_height="50dp"
+        android:layout_margin="10dp"
+        android:gravity="center"
+        android:text="@string/bond_status_headline_text"
+        android:textSize="20sp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <TextView
+        android:id="@+id/gatt_status_text_headline"
+        android:layout_width="150dp"
+        android:layout_height="50dp"
+        android:layout_margin="10dp"
+        android:gravity="center"
+        android:text="@string/gatt_status_headline_text"
+        android:textSize="20sp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <TextView
+        android:id="@+id/bond_status_text"
+        android:layout_width="180dp"
+        android:layout_height="70dp"
+        android:layout_margin="10dp"
+        android:gravity="center"
+        android:background="@drawable/border"
+        app:layout_constraintTop_toBottomOf="@+id/bond_status_text_headline"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <TextView
+        android:id="@+id/gatt_status_text"
+        android:layout_width="180dp"
+        android:layout_height="70dp"
+        android:layout_margin="10dp"
+        android:gravity="center"
+        android:background="@drawable/border"
+        app:layout_constraintTop_toBottomOf="@+id/gatt_status_text_headline"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <TextView
         android:id="@+id/received_text_headline"
         android:layout_width="match_parent"
         android:layout_height="50dp"
@@ -28,10 +70,30 @@
         android:layout_marginRight="10dp"
         android:gravity="center"
         android:background="@drawable/border"
-        app:layout_constraintBottom_toTopOf="@+id/get_name_button"
+        app:layout_constraintBottom_toTopOf="@+id/receive_data_button"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintLeft_toRightOf="@+id/scan_button"/>
+
+    <Button
+        android:id="@+id/receive_data_button"
+        android:layout_width="170dp"
+        android:layout_height="70dp"
+        android:layout_marginBottom="50dp"
+        android:layout_marginStart="20dp"
+        android:text="@string/get_name_button_text"
+        app:layout_constraintBottom_toTopOf="@+id/scan_button"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <Button
+        android:id="@+id/send_data_button"
+        android:layout_width="170dp"
+        android:layout_height="70dp"
+        android:layout_marginBottom="50dp"
+        android:layout_marginEnd="20dp"
+        android:text="@string/send_data_button_text"
+        app:layout_constraintBottom_toTopOf="@+id/scan_button"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <Button
         android:id="@+id/connect_gatt_button"
@@ -43,16 +105,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginEnd="20dp"
         app:layout_constraintLeft_toRightOf="@+id/scan_button"/>
-
-    <Button
-        android:id="@+id/get_name_button"
-        android:layout_width="170dp"
-        android:layout_height="70dp"
-        android:layout_marginBottom="50dp"
-        android:text="@string/get_name_button_text"
-        app:layout_constraintBottom_toTopOf="@+id/scan_button"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
 
     <Button
         android:id="@+id/scan_button"
