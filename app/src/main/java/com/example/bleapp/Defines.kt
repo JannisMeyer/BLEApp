@@ -10,6 +10,12 @@ class Defines {
         var LOCATION_PERMISSIONS_REQUEST_CODE = 3
 
 
+        //Bluetooth Data Requests
+        var DEVICE_NAME_REQUEST = 0
+        var MODEL_NUMBER_REQUEST = 1
+        var FIRMWARE_REVISION_REQUEST = 2
+
+
         //Bluetooth Services
         var GENERIC_ACCESS_SERVICE = "00001800-0000-1000-8000-00805f9b34fb"
 
@@ -69,10 +75,12 @@ class Defines {
         var LED_SCROLLING_DELAY = "e95d0d2d-251d-470a-a062-fa1922dfa9a8"
 
 
-
+        //not relevant for now
+        /*
         var TEMPERATURE_SERVICE = "e95d6100-251d-470a-a062-fa1922dfa9a8"
 
         var TEMPERATURE = "e95d9250-251d-470a-a062-fa1922dfa9a8"
         var TEMPERATURE_PERIOD = "e95d1b25-251d-470a-a062-fa1922dfa9a8"
+        */
     }
 }

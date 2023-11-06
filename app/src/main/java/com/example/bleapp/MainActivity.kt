@@ -25,7 +25,6 @@ import java.util.regex.Pattern
 
 class MainActivity : AppCompatActivity() {
 
-    //TODO: Add connect button
     //TODO: Add unbond button, unbond every device when app closes
     //TODO: Replace deprecated intent launch in onClickListener
 
@@ -62,6 +61,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         var bonded = false
         var gattConnected = false
+        var servicesDiscovered = false
     }
 
     private lateinit var binding:ActivityMainBinding
@@ -77,10 +77,12 @@ class MainActivity : AppCompatActivity() {
                                               Manifest.permission.ACCESS_COARSE_LOCATION)
 
 
-    ////set up instances and variables for ble device finding and pairing
+    //set up instances and variables for ble device bonding and gatt connection
     private val deviceManager: CompanionDeviceManager by lazy {
         getSystemService(Context.COMPANION_DEVICE_SERVICE) as CompanionDeviceManager
     }
+
+    private lateinit var gatt : BluetoothGatt
 
     @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -277,11 +279,44 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @SuppressLint("MissingPermission")
+    fun readBleData(paraService : Int) {
+
+        lateinit var service : BluetoothGattService
+        lateinit var characteristic : BluetoothGattCharacteristic
+
+        when(paraService) {
+
+            0 -> {
+                service = gatt.getService(UUID.fromString(Defines.GENERIC_ACCESS_SERVICE))
+                characteristic = service.getCharacteristic(UUID.fromString(Defines.DEVICE_NAME))
+            }
+            1 -> {
+                service = gatt.getService(UUID.fromString(Defines.DEVICE_INFORMATION_SERVICE))
+                characteristic = service.getCharacteristic(UUID.fromString(Defines.MODEL_NUMBER))
+            }
+            2 -> {
+                service = gatt.getService(UUID.fromString(Defines.DEVICE_INFORMATION_SERVICE))
+                characteristic = service.getCharacteristic(UUID.fromString(Defines.FIRMWARE_REVISION))
+            }
+        }
+
+        gatt.readCharacteristic(characteristic)
+
+        //handling of read data in onCharacteristicsRead
+    }
+
+    fun writeBleData(data : String) {
+        //TODO
+    }
+
     @SuppressLint("MissingPermission") //permissions given before
-    fun setupGattConnection(deviceName:String, context:Context) {
+    fun setupGattConnection(deviceAddress:String, context:Context) {
+
+        //TODO: Globalize gatt stuff
 
         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-        val device = bluetoothAdapter.getRemoteDevice(deviceName)
+        val device = bluetoothAdapter.getRemoteDevice(deviceAddress)
 
         val gattCallback = object : BluetoothGattCallback() {
 
@@ -305,37 +340,38 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
-                super.onServicesDiscovered(gatt, status)
+            override fun onServicesDiscovered(paraGatt: BluetoothGatt?, status: Int) {
+                super.onServicesDiscovered(paraGatt, status)
 
                 if (status == BluetoothGatt.GATT_SUCCESS) { //GATT-Operation successfull (discovery of services)
-                    for (item in gatt!!.services) {
+                    servicesDiscovered = true
+                    for (item in paraGatt!!.services) {
                         Log.i(TAG, "got service with uuid: " + item.uuid)
                         for (item2 in item.characteristics) {
                             Log.i(TAG, "    got characteristic with uuid: " + item2.uuid)
                         }
                     }
 
-                    val service = gatt.getService(UUID.fromString(Defines.GENERIC_ACCESS_SERVICE))
+                    //TODO: Move setup of characteristics in methods further above
+                    val service = paraGatt.getService(UUID.fromString(Defines.GENERIC_ACCESS_SERVICE))
 
                     val characteristic = service.getCharacteristic(UUID.fromString(Defines.DEVICE_NAME))
 
                     Log.i(TAG, "got characteristic with uuid: " + characteristic.uuid.toString())
 
-                    gatt.readCharacteristic(characteristic)
+                    paraGatt.readCharacteristic(characteristic)
 
                     //TODO: Get writing data to work
-
-                    val service2 = gatt.getService(UUID.fromString(Defines.LED_SERVICE_2))
+                    val service2 = paraGatt.getService(UUID.fromString(Defines.LED_SERVICE_2))
 
                     val characteristic2 = service2.getCharacteristic(UUID.fromString(Defines.LED_TEXT))
 
-                    characteristic2.value="Test".toByteArray()
-                    characteristic2.writeType=BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                    characteristic2.value = "Test".toByteArray()
+                    characteristic2.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
 
                     Log.i(TAG, "got characteristic with uuid: " + characteristic2.uuid.toString())
 
-                    gatt.writeCharacteristic(characteristic2)
+                    paraGatt.writeCharacteristic(characteristic2)
                 }
             }
 
@@ -353,6 +389,8 @@ class MainActivity : AppCompatActivity() {
                 if (status == BluetoothGatt.GATT_SUCCESS) { //GATT-Operation successfull (reading characteristic)
                     val value = characteristic.getStringValue(0)
                     Log.i(TAG, "Read data from micro:bit: $value")
+                    binding.receivedData.text = value
+                    Toast.makeText(context, "New data received!", Toast.LENGTH_LONG).show()
                 }
                 else {
                     Log.e(TAG, "Failed to read data!")
@@ -361,14 +399,18 @@ class MainActivity : AppCompatActivity() {
         }
 
         //connect to gatt
-        val gatt = device.connectGatt(context, false, gattCallback)
+        gatt = device.connectGatt(context, false, gattCallback)
     }
 
+    @SuppressLint("MissingPermission")
     override fun onDestroy() {
         super.onDestroy()
 
         //Bond State Receiver has to be unregistered after use to prevent memory leaks
         unregisterReceiver(bondStateReceiver)
+
+        //Disconnect gatt/device
+        gatt.disconnect()
     }
 
     @SuppressLint("MissingPermission") //Permissions granted before
