@@ -3,6 +3,7 @@ package com.example.bleapp
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.bluetooth.*
 import android.bluetooth.le.ScanResult
 import android.companion.AssociationRequest
@@ -22,15 +23,18 @@ import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.example.bleapp.databinding.ActivityMainBinding
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.*
 import java.util.regex.Pattern
 
 class MainActivity : AppCompatActivity() {
 
-    //TODO: Add unbond button, unbond every device when app closes
+    //(TODO: Add disconnect button)
     //TODO: Replace deprecated intent launch in onClickListener
-    //TODO: Add menu to Send Data Button and Receive Data Button
-    //TODO: Add continuous sending of data
+    //TODO: Get continuous sending of data to work
 
     private val bondStateReceiver = object : BroadcastReceiver() {
         @SuppressLint("MissingPermission")
@@ -48,6 +52,7 @@ class MainActivity : AppCompatActivity() {
                             if (device.name == "BBC micro:bit") {
                                 binding.bondStatusText.text = device.name
                                 bonded = true
+                                binding.scanButton.isEnabled = false
                             }
                             if (context != null && !gattConnected) {
                                 setupGattConnection(device.address, context)
@@ -56,6 +61,8 @@ class MainActivity : AppCompatActivity() {
                     }
                     BluetoothDevice.BOND_NONE -> {
                         Log.i(TAG, "No bond!")
+                        binding.bondStatusText.text = ""
+                        binding.scanButton.isEnabled = true
                     }
                 }
             }
@@ -67,9 +74,12 @@ class MainActivity : AppCompatActivity() {
         var bonded = false
         var gattConnected = false
         var servicesDiscovered = false
+        var streamActive = false
     }
 
     private lateinit var binding:ActivityMainBinding
+
+    val mainHandler = Handler(Looper.getMainLooper())
 
     //permissions needed for companion device binding
     private val bluetoothPermissions = arrayOf(
@@ -88,6 +98,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var gatt : BluetoothGatt
+
+    //Coroutine for asynchronous data stream to micro:bit if wanted
+    @SuppressLint("MissingPermission")
+    val dataStreamCoroutine : suspend() -> Unit = {
+        val service = gatt.getService(UUID.fromString(Defines.LED_SERVICE_2))
+        val characteristic = service.getCharacteristic(UUID.fromString(Defines.LED_TEXT))
+        characteristic.value = "0".toByteArray()
+        characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+
+        while (streamActive) {
+            gatt.writeCharacteristic(characteristic)
+            delay(1000)
+        }
+        //Coroutine ends with this function/block, when streamActive isn't true anymore
+    }
 
     @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -109,9 +134,7 @@ class MainActivity : AppCompatActivity() {
             .build()
 
         val pairingRequest: AssociationRequest = AssociationRequest.Builder()
-            // Find only devices that match this request filter.
             .addDeviceFilter(deviceFilter)
-            // Stop scanning as soon as one device matching the filter is found.
             .setSingleDevice(false)
             .build()
 
@@ -129,7 +152,8 @@ class MainActivity : AppCompatActivity() {
                 for (device in pairedDevices) {
                     Log.i(TAG, device.name + ' ' + device.address)
                     if (device.name.contains("BBC micro:bit")) {
-                        bonded = true //to deactivate the scanning button
+                        bonded = true
+                        binding.scanButton.isEnabled = false
                         binding.bondStatusText.text = device.name
                         Log.i(TAG, "micro:bit already bonded!")
                         if (!gattConnected) {
@@ -138,6 +162,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         else {
                             Log.i(TAG, "micro:bit already connected!")
+                            binding.connectGattButton.isEnabled = false
                         }
                         break
                     }
@@ -145,42 +170,51 @@ class MainActivity : AppCompatActivity() {
                 if (!bonded) {
                     Log.w(TAG, "Not bonded to micro:bit!")
                     binding.bondStatusText.text = ""
+                    binding.scanButton.isEnabled = true
                 }
             }
             else {
                 Log.i(TAG, "No device bonded!")
                 binding.bondStatusText.text = ""
+                binding.scanButton.isEnabled = true
             }
         } else {
             Log.e(TAG, "Bluetooth not available/activated!")
             binding.bondStatusText.text = ""
+            binding.scanButton.isEnabled = true
         }
 
 
         //set OnClickListener for Scan Button
         binding.scanButton.setOnClickListener {
             if (bluetoothAdapter.isEnabled && locationManager.isLocationEnabled) {
-                deviceManager.associate(pairingRequest,
-                    object : CompanionDeviceManager.Callback() { //Called when a device is found, launch the IntentSender so the user can select the device they want to pair with
-                        @Deprecated("Deprecated in Java")
-                        override fun onDeviceFound(chooserLauncher: IntentSender) {
-                            //Toast.makeText(applicationContext, "onDeviceFound()", Toast.LENGTH_LONG).show()
-                            startIntentSenderForResult(chooserLauncher,
-                                Defines.SELECT_DEVICE_REQUEST_CODE, null, 0, 0, 0)
-                        }
+                if (!bonded) {
+                    deviceManager.associate(pairingRequest,
+                        object :
+                            CompanionDeviceManager.Callback() { //Called when a device is found, launch the IntentSender so the user can select the device they want to pair with
+                            @Deprecated("Deprecated in Java")
+                            override fun onDeviceFound(chooserLauncher: IntentSender) {
+                                startIntentSenderForResult(
+                                    chooserLauncher,
+                                    Defines.SELECT_DEVICE_REQUEST_CODE, null, 0, 0, 0
+                                )
+                            }
 
-                        override fun onFailure(error: CharSequence?) {
-                            Toast.makeText(applicationContext, error, Toast.LENGTH_LONG).show()
-                        }
-                    }, null)
+                            override fun onFailure(error: CharSequence?) {
+                                Toast.makeText(applicationContext, error, Toast.LENGTH_LONG).show()
+                            }
+                        }, null
+                    )
+                }
+                else {
+                    Log.i(TAG, "micro:bit already bonded!")
+                }
             }
             else {
-                Toast.makeText(this, "Bluetooth or Location not enabled!", Toast.LENGTH_LONG).show()
-                Log.w(TAG, "Bluetooth or Location not enabled!")
+                Toast.makeText(this, "Bluetooth or location not enabled!", Toast.LENGTH_LONG).show()
+                Log.w(TAG, "Bluetooth or location not enabled!")
             }
-
         }
-        binding.scanButton.isEnabled = !bonded
 
         //set OnClickListener for Connect Gatt Button
         binding.connectGattButton.setOnClickListener {
@@ -194,30 +228,33 @@ class MainActivity : AppCompatActivity() {
                             setupGattConnection(device.address, this)
                             break
                         }
+                        else {
+                            Log.w(TAG, "micro:bit not bonded or gatt connection already established!")
+                        }
                     }
                 }
                 else {
                     Log.i(TAG, "No device bonded!")
                 }
             } else {
-                Log.e(TAG, "Bluetooth not available/activated!")
+                Log.e(TAG, "Bluetooth or location not available/activated!")
             }
         }
-        binding.connectGattButton.isEnabled = !gattConnected
+        binding.connectGattButton.isEnabled = false
 
         //set OnClickListener for Get Name Button
         binding.receiveDataButton.setOnClickListener {
-            readBleData(Defines.DEVICE_NAME_REQUEST)
 
-            binding.receiveDataButton.isEnabled = gattConnected
+            showReceiveOptionsDialog()
         }
+        binding.receiveDataButton.isEnabled = false
 
         //set OnClickListener for Send Data Button
         binding.sendDataButton.setOnClickListener {
-            writeBleData(Defines.WRITE_LED_TEXT_REQUEST, "test")
 
-            binding.sendDataButton.isEnabled = gattConnected
+            showSendOptionsDialog()
         }
+        binding.sendDataButton.isEnabled = false
     }
 
     @Deprecated("Deprecated in Java")
@@ -326,11 +363,11 @@ class MainActivity : AppCompatActivity() {
 
         gatt.readCharacteristic(characteristic)
 
-        //handling of reading data in onCharacteristicsRead
+        //handling of reading data in onCharacteristicsRead further below
     }
 
     @SuppressLint("MissingPermission")
-    fun writeBleData(paraService : Int, data : String) {
+    fun writeBleData(paraService: Int, data: String) {
 
         lateinit var service : BluetoothGattService
         lateinit var characteristic : BluetoothGattCharacteristic
@@ -345,16 +382,67 @@ class MainActivity : AppCompatActivity() {
             Defines.WRITE_LED_REQUEST -> {
                 service = gatt.getService(UUID.fromString(Defines.LED_SERVICE_2))
                 characteristic = service.getCharacteristic(UUID.fromString(Defines.LED_MATRIX_STATE))
-                characteristic.value = "Test2".toByteArray()
+                val byteData = arrayListOf<Byte>(10, 0, 17, 14, 0)
+                characteristic.value = byteData.toByteArray()
             }
         }
 
-        characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        if (data != "0") {
+            gatt.writeCharacteristic(characteristic)
+            streamActive = false
+        }
+        else {
+            streamActive = true
+            CoroutineScope(Dispatchers.Default).launch { dataStreamCoroutine }
+        }
 
-        gatt.writeCharacteristic(characteristic)
-
-        //handling of writing data in onCharacteristicsRead
+        //handling of writing data in onCharacteristicsWrite further below
     }
+
+    private fun showReceiveOptionsDialog() {
+        val builder = AlertDialog.Builder(this)
+        val options = arrayOf("Device Name", "Model Number", "Firmware Version")
+
+        builder.setItems(options) { _, which ->
+            when (which) {
+                0 -> {
+                    readBleData(Defines.DEVICE_NAME_REQUEST)
+                }
+                1 -> {
+                    readBleData(Defines.MODEL_NUMBER_REQUEST)
+                }
+                2 -> {
+                    readBleData(Defines.FIRMWARE_REVISION_REQUEST)
+                }
+            }
+        }
+
+        val dialog = builder.create()
+        dialog.show()
+    }
+
+    private fun showSendOptionsDialog() {
+        val builder = AlertDialog.Builder(this)
+        val options = arrayOf("Text", "Smiley", "Stream") //
+
+        builder.setItems(options) { _, which ->
+            when (which) {
+                0 -> {
+                    writeBleData(Defines.WRITE_LED_TEXT_REQUEST, "Text")
+                }
+                1 -> {
+                    writeBleData(Defines.WRITE_LED_REQUEST, "") //no data needed
+                }
+                2 -> {
+                    writeBleData(Defines.WRITE_LED_TEXT_REQUEST, "0")
+                }
+            }
+        }
+
+        val dialog = builder.create()
+        dialog.show()
+    }
+
 
     @SuppressLint("MissingPermission") //permissions given before
     fun setupGattConnection(deviceAddress:String, context:Context) {
@@ -368,30 +456,44 @@ class MainActivity : AppCompatActivity() {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
                         gattConnected = true
+                        mainHandler.post {
+                            binding.connectGattButton.isEnabled = false //only main/ui thread can access ui/animation elements
+                        }
                         binding.gattStatusText.text = device.name
                         Log.i(TAG, "BluetoothDevice CONNECTED: $device")
                         gatt?.discoverServices()
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         gattConnected = false
                         binding.gattStatusText.text = ""
+                        mainHandler.post {
+                            binding.connectGattButton.isEnabled = true
+                        }
                         Log.i(TAG, "BluetoothDevice DISCONNECTED: $device")
                     }
                     else {
                         gattConnected = false
                         binding.gattStatusText.text = ""
+                        binding.connectGattButton.isEnabled = true
                         Log.e(TAG, "Unknown connect state!")
                     }
                 }
                 else {
                     Log.e(TAG, "gatt operation failed!")
+                    binding.connectGattButton.isEnabled = true
                 }
             }
 
             override fun onServicesDiscovered(paraGatt: BluetoothGatt?, status: Int) {
                 super.onServicesDiscovered(paraGatt, status)
 
+                Log.i(TAG, "gattConnected value: $gattConnected")
+
                 if (status == BluetoothGatt.GATT_SUCCESS) { //GATT-Operation successfull (discovery of services)
                     servicesDiscovered = true
+                    mainHandler.post {
+                        binding.receiveDataButton.isEnabled = true
+                        binding.sendDataButton.isEnabled = true
+                    }
                     for (item in paraGatt!!.services) {
                         Log.i(TAG, "got service with uuid: " + item.uuid)
                         for (item2 in item.characteristics) {
@@ -401,6 +503,10 @@ class MainActivity : AppCompatActivity() {
                 }
                 else {
                     servicesDiscovered = false
+                    mainHandler.post {
+                        binding.receiveDataButton.isEnabled = false
+                        binding.sendDataButton.isEnabled = false
+                    }
                 }
             }
 
@@ -421,7 +527,6 @@ class MainActivity : AppCompatActivity() {
                     binding.receivedData.text = value
 
                     //Handler to main thread needed as toasts can only be shown in main ui thread
-                    val mainHandler = Handler(Looper.getMainLooper())
                     mainHandler.post {
                         Toast.makeText(applicationContext, "New data received!", Toast.LENGTH_LONG).show()
                     }
@@ -445,12 +550,16 @@ class MainActivity : AppCompatActivity() {
 
         //Disconnect gatt/device
         gatt.disconnect()
+
+        //No unbonding due to the lack of an official unbonding method, bonded devices are permanent and independent from the app runtime anyways
+        //(bonding and unbonding can also be done in bluetooth settings)
     }
 
     @SuppressLint("MissingPermission") //Permissions granted before
     override fun onResume() {
         super.onResume()
 
+        /*
         Log.i(TAG, "onResume()")
 
         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
@@ -490,5 +599,6 @@ class MainActivity : AppCompatActivity() {
             Log.i(TAG, "Bluetooth or location not available/activated!")
             binding.bondStatusText.text = ""
         }
+         */
     }
 }
