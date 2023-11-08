@@ -31,6 +31,8 @@ class MainActivity : AppCompatActivity() {
 
     //(TODO: Add disconnect button)
     //TODO: Replace deprecated intent launch in onClickListener
+    //TODO: Look at received data/discovered characteristics when micro:bit sends
+    //TODO: Implement receive/answer functionality
 
     private val bondStateReceiver = object : BroadcastReceiver() {
         @SuppressLint("MissingPermission")
@@ -376,10 +378,11 @@ class MainActivity : AppCompatActivity() {
         else {
             if (!coroutineExists) {
                 Log.v(TAG, "Starting coroutine...")
-                streamActive = true
-                coroutineExists = true
                 CoroutineScope(Dispatchers.Default).launch {
                     Log.i(TAG, "Coroutine started!")
+
+                    streamActive = true
+                    coroutineExists = true
 
                     /*withContext(Dispatchers.Main) {
                         builder.dismiss()
