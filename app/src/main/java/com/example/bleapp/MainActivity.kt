@@ -23,10 +23,7 @@ import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.example.bleapp.databinding.ActivityMainBinding
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import java.util.*
 import java.util.regex.Pattern
 
@@ -34,7 +31,6 @@ class MainActivity : AppCompatActivity() {
 
     //(TODO: Add disconnect button)
     //TODO: Replace deprecated intent launch in onClickListener
-    //TODO: Get continuous sending of data to work
 
     private val bondStateReceiver = object : BroadcastReceiver() {
         @SuppressLint("MissingPermission")
@@ -75,6 +71,7 @@ class MainActivity : AppCompatActivity() {
         var gattConnected = false
         var servicesDiscovered = false
         var streamActive = false
+        var coroutineExists = false
     }
 
     private lateinit var binding:ActivityMainBinding
@@ -99,21 +96,6 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var gatt : BluetoothGatt
 
-    //Coroutine for asynchronous data stream to micro:bit if wanted
-    @SuppressLint("MissingPermission")
-    val dataStreamCoroutine : suspend() -> Unit = {
-        val service = gatt.getService(UUID.fromString(Defines.LED_SERVICE_2))
-        val characteristic = service.getCharacteristic(UUID.fromString(Defines.LED_TEXT))
-        characteristic.value = "0".toByteArray()
-        characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-
-        while (streamActive) {
-            gatt.writeCharacteristic(characteristic)
-            delay(1000)
-        }
-        //Coroutine ends with this function/block, when streamActive isn't true anymore
-    }
-
     @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -135,7 +117,7 @@ class MainActivity : AppCompatActivity() {
 
         val pairingRequest: AssociationRequest = AssociationRequest.Builder()
             .addDeviceFilter(deviceFilter)
-            .setSingleDevice(false)
+            .setSingleDevice(true)
             .build()
 
         val filter = IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
@@ -363,7 +345,7 @@ class MainActivity : AppCompatActivity() {
 
         gatt.readCharacteristic(characteristic)
 
-        //handling of reading data in onCharacteristicsRead further below
+        //handling of read data in onCharacteristicsRead further below
     }
 
     @SuppressLint("MissingPermission")
@@ -392,11 +374,34 @@ class MainActivity : AppCompatActivity() {
             streamActive = false
         }
         else {
-            streamActive = true
-            CoroutineScope(Dispatchers.Default).launch { dataStreamCoroutine }
+            if (!coroutineExists) {
+                Log.v(TAG, "Starting coroutine...")
+                streamActive = true
+                coroutineExists = true
+                CoroutineScope(Dispatchers.Default).launch {
+                    Log.i(TAG, "Coroutine started!")
+
+                    /*withContext(Dispatchers.Main) {
+                        builder.dismiss()
+                    }*/
+
+                    while (streamActive) {
+                        gatt.writeCharacteristic(characteristic)
+                        delay(1000)
+                    }
+
+                    coroutineExists = false
+
+                    //Coroutine ends with this function/block, when streamActive isn't true anymore
+                    Log.i(TAG, "Coroutine terminated!")
+                }
+            }
+            else {
+                Log.w(TAG, "A coroutine already exists!")
+            }
         }
 
-        //handling of writing data in onCharacteristicsWrite further below
+        //handling of written data in onCharacteristicsWrite further below
     }
 
     private fun showReceiveOptionsDialog() {
@@ -437,10 +442,7 @@ class MainActivity : AppCompatActivity() {
                     writeBleData(Defines.WRITE_LED_TEXT_REQUEST, "0")
                 }
             }
-        }
-
-        val dialog = builder.create()
-        dialog.show()
+        }.show()
     }
 
 
