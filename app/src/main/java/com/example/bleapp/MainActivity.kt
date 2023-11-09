@@ -221,6 +221,7 @@ class MainActivity : AppCompatActivity() {
                     Log.i(TAG, "No device bonded!")
                 }
             } else {
+                Toast.makeText(this, "Bluetooth or location not enabled!", Toast.LENGTH_LONG).show()
                 Log.e(TAG, "Bluetooth or location not available/activated!")
             }
         }
@@ -469,6 +470,7 @@ class MainActivity : AppCompatActivity() {
                         gatt?.discoverServices()
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         gattConnected = false
+                        streamActive = false //to stop potential data streaming/coroutine
                         binding.gattStatusText.text = ""
                         mainHandler.post {
                             binding.connectGattButton.isEnabled = true
@@ -477,6 +479,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     else {
                         gattConnected = false
+                        streamActive = false
                         binding.gattStatusText.text = ""
                         binding.connectGattButton.isEnabled = true
                         Log.e(TAG, "Unknown connect state!")
