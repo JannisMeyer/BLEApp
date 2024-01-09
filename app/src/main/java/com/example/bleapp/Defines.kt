@@ -40,7 +40,7 @@ class Defines {
 
 
 
-        var LED_SERVICE = "e97dd91d-251d-470a-a062-fa1922dfa9a8" //unconfirmed
+        var LED_SERVICE_UNCONFIRMED = "e97dd91d-251d-470a-a062-fa1922dfa9a8" //unconfirmed
 
         var XX = "e97d3b10-251d-470a-a062-fa1922dfa9a8"
 
@@ -70,7 +70,7 @@ class Defines {
 
 
 
-        var LED_SERVICE_2 = "e95dd91d-251d-470a-a062-fa1922dfa9a8"
+        var LED_SERVICE = "e95dd91d-251d-470a-a062-fa1922dfa9a8"
 
         var LED_MATRIX_STATE = "e95d7b77-251d-470a-a062-fa1922dfa9a8"
         var LED_TEXT = "e95d93ee-251d-470a-a062-fa1922dfa9a8"
@@ -78,11 +78,9 @@ class Defines {
 
 
         //not relevant for now
-        /*
         var TEMPERATURE_SERVICE = "e95d6100-251d-470a-a062-fa1922dfa9a8"
 
         var TEMPERATURE = "e95d9250-251d-470a-a062-fa1922dfa9a8"
         var TEMPERATURE_PERIOD = "e95d1b25-251d-470a-a062-fa1922dfa9a8"
-        */
     }
 }

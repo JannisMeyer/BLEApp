@@ -31,8 +31,7 @@ class MainActivity : AppCompatActivity() {
 
     //(TODO: Add disconnect button)
     //TODO: Replace deprecated intent launch in onClickListener
-    //TODO: Look at received data/discovered characteristics when micro:bit sends
-    //TODO: Implement receive/answer functionality
+    //(TODO: Implement receive/answer functionality)
 
     private val bondStateReceiver = object : BroadcastReceiver() {
         @SuppressLint("MissingPermission")
@@ -60,7 +59,9 @@ class MainActivity : AppCompatActivity() {
                     BluetoothDevice.BOND_NONE -> {
                         Log.i(TAG, "No bond!")
                         binding.bondStatusText.text = ""
+                        binding.receivedData.text = "" // clear data textbox
                         binding.scanButton.isEnabled = true
+                        bonded = false
                     }
                 }
             }
@@ -360,12 +361,12 @@ class MainActivity : AppCompatActivity() {
         when(paraService) {
 
             Defines.WRITE_LED_TEXT_REQUEST -> {
-                service = gatt.getService(UUID.fromString(Defines.LED_SERVICE_2))
+                service = gatt.getService(UUID.fromString(Defines.LED_SERVICE))
                 characteristic = service.getCharacteristic(UUID.fromString(Defines.LED_TEXT))
                 characteristic.value = data.toByteArray()
             }
             Defines.WRITE_LED_REQUEST -> {
-                service = gatt.getService(UUID.fromString(Defines.LED_SERVICE_2))
+                service = gatt.getService(UUID.fromString(Defines.LED_SERVICE))
                 characteristic = service.getCharacteristic(UUID.fromString(Defines.LED_MATRIX_STATE))
                 val byteData = arrayListOf<Byte>(10, 0, 17, 14, 0)
                 characteristic.value = byteData.toByteArray()
@@ -474,14 +475,22 @@ class MainActivity : AppCompatActivity() {
                         binding.gattStatusText.text = ""
                         mainHandler.post {
                             binding.connectGattButton.isEnabled = true
+                            binding.receiveDataButton.isEnabled = false
+                            binding.sendDataButton.isEnabled = false
                         }
+                        binding.receivedData.text = "" // clear data textbox
                         Log.i(TAG, "BluetoothDevice DISCONNECTED: $device")
                     }
                     else {
                         gattConnected = false
                         streamActive = false
                         binding.gattStatusText.text = ""
-                        binding.connectGattButton.isEnabled = true
+                        mainHandler.post {
+                            binding.connectGattButton.isEnabled = true
+                            binding.receiveDataButton.isEnabled = false
+                            binding.sendDataButton.isEnabled = false
+                        }
+                        binding.receivedData.text = "" // clear data textbox
                         Log.e(TAG, "Unknown connect state!")
                     }
                 }
@@ -540,6 +549,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 else {
+                    binding.receivedData.text = "" // clear data textbox
                     Log.e(TAG, "Failed to read data!")
                 }
             }
