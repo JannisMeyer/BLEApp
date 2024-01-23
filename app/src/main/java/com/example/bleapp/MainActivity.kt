@@ -468,6 +468,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         binding.gattStatusText.text = device.name
                         Log.i(TAG, "BluetoothDevice CONNECTED: $device")
+                        gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) // set connection parameters to achieve a high prio, low latency connection
                         gatt?.discoverServices()
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         gattConnected = false
