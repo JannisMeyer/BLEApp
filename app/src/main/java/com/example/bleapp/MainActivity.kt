@@ -73,8 +73,8 @@ class MainActivity : AppCompatActivity() {
         var servicesDiscovered = false
         var streamActive = false
         var coroutineExists = false
-        var microbitBonded = false
-        var inkbirdBonded = false
+        var microbitConnected = false
+        var inkbirdConnected= false
     }
 
     private lateinit var binding:ActivityMainBinding
@@ -258,14 +258,18 @@ class MainActivity : AppCompatActivity() {
         //set OnClickListener for Get Name Button
         binding.receiveDataButton.setOnClickListener {
 
-            showReceiveOptionsDialog()
+            if (microbitConnected) {
+                showReceiveOptionsDialogMicrobit()
+            } else if (inkbirdConnected) {
+                showReceiveOptionsDialogInkbird()
+            }
         }
         binding.receiveDataButton.isEnabled = false
 
         //set OnClickListener for Send Data Button
         binding.sendDataButton.setOnClickListener {
 
-            showSendOptionsDialog()
+            showSendOptionsDialogMicrobit()
         }
         binding.sendDataButton.isEnabled = false
     }
@@ -436,7 +440,7 @@ class MainActivity : AppCompatActivity() {
         //handling of written data in onCharacteristicsWrite further below
     }
 
-    private fun showReceiveOptionsDialog() {
+    private fun showReceiveOptionsDialogMicrobit() {
         val builder = AlertDialog.Builder(this)
         val options = arrayOf("Device Name", "Model Number", "Firmware Version")
 
@@ -458,7 +462,13 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun showSendOptionsDialog() {
+    private fun showReceiveOptionsDialogInkbird() {
+        mainHandler.post {
+            Toast.makeText(applicationContext, "Coming soon!", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun showSendOptionsDialogMicrobit() {
         val builder = AlertDialog.Builder(this)
         val options = arrayOf("Text", "Smiley", "Stream") //
 
@@ -490,11 +500,16 @@ class MainActivity : AppCompatActivity() {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
                         gattConnected = true
+                        if (device.name.contains("BBC micro:bit")) {
+                            microbitConnected = true
+                        } else if (device.name.contains("Ink@IAM-T1")) {
+                            inkbirdConnected = true
+                        }
                         mainHandler.post {
                             binding.connectGattButton.isEnabled = false //only main/ui thread can access ui/animation elements
                         }
                         binding.gattStatusText.text = device.name
-                        Log.i(TAG, "BluetoothDevice CONNECTED: $device")
+                        Log.i(TAG, "BluetoothDevice CONNECTED: ${device.name}")
                         //gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_BALANCED)
                         //gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) // set connection parameters to achieve a high prio, low latency connection
                         //gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_DCK) // phone too old
@@ -503,6 +518,8 @@ class MainActivity : AppCompatActivity() {
                         gatt?.readPhy()
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         gattConnected = false
+                        microbitConnected = false
+                        inkbirdConnected = false
                         streamActive = false //to stop potential data streaming/coroutine
                         binding.gattStatusText.text = ""
                         mainHandler.post {
@@ -511,10 +528,12 @@ class MainActivity : AppCompatActivity() {
                             binding.sendDataButton.isEnabled = false
                         }
                         binding.receivedData.text = "" // clear data textbox
-                        Log.i(TAG, "BluetoothDevice DISCONNECTED: $device")
+                        Log.i(TAG, "BluetoothDevice DISCONNECTED: ${device.name}")
                     }
                     else {
                         gattConnected = false
+                        microbitConnected = false
+                        inkbirdConnected = false
                         streamActive = false
                         binding.gattStatusText.text = ""
                         mainHandler.post {
@@ -537,13 +556,13 @@ class MainActivity : AppCompatActivity() {
             override fun onServicesDiscovered(paraGatt: BluetoothGatt?, status: Int) {
                 super.onServicesDiscovered(paraGatt, status)
 
-                Log.i(TAG, "gattConnected value: $gattConnected")
-
                 if (status == BluetoothGatt.GATT_SUCCESS) { //GATT-Operation successfull (discovery of services)
                     servicesDiscovered = true
                     mainHandler.post {
                         binding.receiveDataButton.isEnabled = true
-                        binding.sendDataButton.isEnabled = true
+                        if (device.name.contains("BBC micro:bit")) {
+                            binding.sendDataButton.isEnabled = true
+                        }
                     }
                     for (item in paraGatt!!.services) {
                         Log.i(TAG, "got service with uuid: " + item.uuid)
@@ -563,7 +582,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onCharacteristicWrite(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?, status: Int) {
                 if (status == BluetoothGatt.GATT_SUCCESS) { //GATT-Operation successfull (writing characteristic)
-                    Log.i(TAG, "Wrote data to micro:bit")
+                    Log.i(TAG, "Wrote data to connected device")
                 }
                 else {
                     Log.e(TAG, "Failed to write data!")
@@ -574,7 +593,7 @@ class MainActivity : AppCompatActivity() {
             override fun onCharacteristicRead(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic, status: Int) {
                 if (status == BluetoothGatt.GATT_SUCCESS) { //GATT-Operation successfull (reading characteristic)
                     val value = characteristic.getStringValue(0)
-                    Log.i(TAG, "Read data from micro:bit: $value")
+                    Log.i(TAG, "Read data from connected device: $value")
                     binding.receivedData.text = value
 
                     //Handler to main thread needed as toasts can only be shown in main ui thread
