@@ -30,8 +30,8 @@ import java.util.regex.Pattern
 class MainActivity : AppCompatActivity() {
 
     //(TODO: Add disconnect button)
-    //TODO: Replace deprecated intent launch in onClickListener
-    //(TODO: Implement receive/answer functionality)
+    //(TODO: Replace deprecated intent launch in onClickListener)
+    //TODO: Add services from Inkbird + differentiate between Inkbird and micro:bit
 
     private val bondStateReceiver = object : BroadcastReceiver() {
         @SuppressLint("MissingPermission")
@@ -46,11 +46,9 @@ class MainActivity : AppCompatActivity() {
                     BluetoothDevice.BOND_BONDED -> {
                         if (device != null) {
                             Log.i(TAG, "Bonded to " + device.name + "!")
-                            if (device.name == "BBC micro:bit") {
-                                binding.bondStatusText.text = device.name
-                                bonded = true
-                                binding.scanButton.isEnabled = false
-                            }
+                            binding.bondStatusText.text = device.name
+                            bonded = true
+                            binding.scanButton.isEnabled = false
                             if (context != null && !gattConnected) {
                                 setupGattConnection(device.address, context)
                             }
@@ -75,6 +73,8 @@ class MainActivity : AppCompatActivity() {
         var servicesDiscovered = false
         var streamActive = false
         var coroutineExists = false
+        var microbitBonded = false
+        var inkbirdBonded = false
     }
 
     private lateinit var binding:ActivityMainBinding
@@ -114,13 +114,17 @@ class MainActivity : AppCompatActivity() {
         checkPermissions(bluetoothPermissions, Defines.BLUETOOTH_PERMISSIONS_REQUEST_CODE)
 
         //set up instances for ble device finding and pairing
-        val deviceFilter: BluetoothLeDeviceFilter = BluetoothLeDeviceFilter.Builder()
-            .setNamePattern(Pattern.compile("BBC micro:bit *"))
+        val deviceFilterMicrobit: BluetoothLeDeviceFilter = BluetoothLeDeviceFilter.Builder()
+            .setNamePattern(Pattern.compile("BBC micro:bit*"))
+            .build()
+
+        val deviceFilterInkBird: BluetoothLeDeviceFilter = BluetoothLeDeviceFilter.Builder()
+            .setNamePattern(Pattern.compile("Ink@IAM-T1*"))
             .build()
 
         val pairingRequest: AssociationRequest = AssociationRequest.Builder()
-            .addDeviceFilter(deviceFilter)
-            .setSingleDevice(true)
+            .addDeviceFilter(deviceFilterMicrobit)
+            .addDeviceFilter(deviceFilterInkBird)
             .build()
 
         val filter = IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
@@ -150,10 +154,24 @@ class MainActivity : AppCompatActivity() {
                             binding.connectGattButton.isEnabled = false
                         }
                         break
+                    } else if (device.name.contains("Ink@IAM-T1")) {
+                        bonded = true
+                        binding.scanButton.isEnabled = false
+                        binding.bondStatusText.text = device.name
+                        Log.i(TAG, "Inkbird already bonded!")
+                        if (!gattConnected) {
+                            Log.i(TAG, "Creating gatt connection to Inkbird...")
+                            setupGattConnection(device.address, this)
+                        }
+                        else {
+                            Log.i(TAG, "Inkbird already connected!")
+                            binding.connectGattButton.isEnabled = false
+                        }
+                        break
                     }
                 }
                 if (!bonded) {
-                    Log.w(TAG, "Not bonded to micro:bit!")
+                    Log.w(TAG, "Not bonded to any of accepted devices!")
                     binding.bondStatusText.text = ""
                     binding.scanButton.isEnabled = true
                 }
@@ -164,7 +182,7 @@ class MainActivity : AppCompatActivity() {
                 binding.scanButton.isEnabled = true
             }
         } else {
-            Log.e(TAG, "Bluetooth not available/activated!")
+            Log.e(TAG, "Bluetooth or location not enabled!")
             binding.bondStatusText.text = ""
             binding.scanButton.isEnabled = true
         }
@@ -192,7 +210,7 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
                 else {
-                    Log.i(TAG, "micro:bit already bonded!")
+                    Log.i(TAG, "Device already bonded!")
                 }
             }
             else {
@@ -205,17 +223,26 @@ class MainActivity : AppCompatActivity() {
         binding.connectGattButton.setOnClickListener {
             if (bluetoothAdapter != null && bluetoothAdapter.isEnabled && locationManager.isLocationEnabled) {
                 val pairedDevices = bluetoothAdapter.bondedDevices
+                var acceptedDeviceBondedOrGattConnectionAlreadyEstablished = false
 
                 if (pairedDevices != null) {
                     for (device in pairedDevices) {
                         if (device.name.contains("BBC micro:bit") && !gattConnected) {
                             Log.i(TAG, "Creating gatt connection to micro:bit...")
+                            binding.connectGattButton.isEnabled = false
                             setupGattConnection(device.address, this)
+                            acceptedDeviceBondedOrGattConnectionAlreadyEstablished = true
+                            break
+                        } else if (device.name.contains("Ink@IAM-T1") && !gattConnected) {
+                            Log.i(TAG, "Creating gatt connection to Inkbird...")
+                            binding.connectGattButton.isEnabled = false
+                            setupGattConnection(device.address, this)
+                            acceptedDeviceBondedOrGattConnectionAlreadyEstablished = true
                             break
                         }
-                        else {
-                            Log.w(TAG, "micro:bit not bonded or gatt connection already established!")
-                        }
+                    }
+                    if (!acceptedDeviceBondedOrGattConnectionAlreadyEstablished) {
+                        Log.w(TAG, "No accepted device bonded or gatt connection already established!")
                     }
                 }
                 else {
@@ -468,8 +495,12 @@ class MainActivity : AppCompatActivity() {
                         }
                         binding.gattStatusText.text = device.name
                         Log.i(TAG, "BluetoothDevice CONNECTED: $device")
-                        gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) // set connection parameters to achieve a high prio, low latency connection
+                        //gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_BALANCED)
+                        //gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) // set connection parameters to achieve a high prio, low latency connection
+                        //gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_DCK) // phone too old
+                        gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER)
                         gatt?.discoverServices()
+                        gatt?.readPhy()
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         gattConnected = false
                         streamActive = false //to stop potential data streaming/coroutine
@@ -496,8 +527,10 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 else {
-                    Log.e(TAG, "gatt operation failed!")
-                    binding.connectGattButton.isEnabled = true
+                    Log.e(TAG, "gatt operation failed with error: $status")
+                    mainHandler.post {
+                        binding.connectGattButton.isEnabled = true
+                    }
                 }
             }
 
@@ -572,52 +605,5 @@ class MainActivity : AppCompatActivity() {
 
         //No unbonding due to the lack of an official unbonding method, bonded devices are permanent and independent from the app runtime anyways
         //(bonding and unbonding can also be done in bluetooth settings)
-    }
-
-    @SuppressLint("MissingPermission") //Permissions granted before
-    override fun onResume() {
-        super.onResume()
-
-        /*
-        Log.i(TAG, "onResume()")
-
-        val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-        val locationManager = this.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-
-        //Check if micro:bit is already bonded (bonded != connected!!!)
-        if (bluetoothAdapter != null && bluetoothAdapter.isEnabled && locationManager.isLocationEnabled) {
-            val pairedDevices = bluetoothAdapter.bondedDevices
-
-            if (pairedDevices != null) {
-                for (device in pairedDevices) {
-                    Log.i(TAG, device.name + ' ' + device.address)
-                    if (device.name.contains("BBC micro:bit")) {
-                        bonded = true //to deactivate the scanning button
-                        binding.bondStatusText.text = device.name
-                        Log.i(TAG, "micro:bit already bonded!")
-                        if (!gattConnected) {
-                            Log.i(TAG, "Creating gatt connection to micro:bit...")
-                            setupGattConnection(device.address, this)
-                        }
-                        else {
-                            Log.i(TAG, "micro:bit already connected!")
-                        }
-                        break
-                    }
-                }
-                if (!bonded) {
-                    Log.w(TAG, "micro:bit not bonded!")
-                    binding.bondStatusText.text = ""
-                }
-            }
-            else {
-                Log.i(TAG, "No device bonded!")
-                binding.bondStatusText.text = ""
-            }
-        } else {
-            Log.i(TAG, "Bluetooth or location not available/activated!")
-            binding.bondStatusText.text = ""
-        }
-         */
     }
 }
