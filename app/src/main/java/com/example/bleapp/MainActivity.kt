@@ -364,17 +364,21 @@ class MainActivity : AppCompatActivity() {
 
         when(paraService) {
 
-            Defines.DEVICE_NAME_REQUEST -> {
-                service = gatt.getService(UUID.fromString(Defines.GENERIC_ACCESS_SERVICE))
-                characteristic = service.getCharacteristic(UUID.fromString(Defines.DEVICE_NAME))
+            Defines.MICROBIT_DEVICE_NAME_REQUEST -> {
+                service = gatt.getService(UUID.fromString(Defines.MICROBIT_GENERIC_ACCESS_SERVICE))
+                characteristic = service.getCharacteristic(UUID.fromString(Defines.MICROBIT_DEVICE_NAME))
             }
-            Defines.MODEL_NUMBER_REQUEST -> {
-                service = gatt.getService(UUID.fromString(Defines.DEVICE_INFORMATION_SERVICE))
-                characteristic = service.getCharacteristic(UUID.fromString(Defines.MODEL_NUMBER))
+            Defines.MICROBIT_MODEL_NUMBER_REQUEST -> {
+                service = gatt.getService(UUID.fromString(Defines.MICROBIT_DEVICE_INFORMATION_SERVICE))
+                characteristic = service.getCharacteristic(UUID.fromString(Defines.MICROBIT_MODEL_NUMBER))
             }
-            Defines.FIRMWARE_REVISION_REQUEST -> {
-                service = gatt.getService(UUID.fromString(Defines.DEVICE_INFORMATION_SERVICE))
-                characteristic = service.getCharacteristic(UUID.fromString(Defines.FIRMWARE_REVISION))
+            Defines.MICROBIT_FIRMWARE_REVISION_REQUEST -> {
+                service = gatt.getService(UUID.fromString(Defines.MICROBIT_DEVICE_INFORMATION_SERVICE))
+                characteristic = service.getCharacteristic(UUID.fromString(Defines.MICROBIT_FIRMWARE_REVISION))
+            }
+            Defines.INKBIRD_NAME_REQUEST -> {
+                service = gatt.getService(UUID.fromString(Defines.INKBIRD_GENERIC_ACCESS_SERVICE))
+                characteristic = service.getCharacteristic(UUID.fromString(Defines.INKBIRD_DEVICE_NAME))
             }
         }
 
@@ -391,14 +395,14 @@ class MainActivity : AppCompatActivity() {
 
         when(paraService) {
 
-            Defines.WRITE_LED_TEXT_REQUEST -> {
-                service = gatt.getService(UUID.fromString(Defines.LED_SERVICE))
-                characteristic = service.getCharacteristic(UUID.fromString(Defines.LED_TEXT))
+            Defines.MICROBIT_WRITE_LED_TEXT_REQUEST -> {
+                service = gatt.getService(UUID.fromString(Defines.MICROBIT_LED_SERVICE))
+                characteristic = service.getCharacteristic(UUID.fromString(Defines.MICROBIT_LED_TEXT))
                 characteristic.value = data.toByteArray()
             }
-            Defines.WRITE_LED_REQUEST -> {
-                service = gatt.getService(UUID.fromString(Defines.LED_SERVICE))
-                characteristic = service.getCharacteristic(UUID.fromString(Defines.LED_MATRIX_STATE))
+            Defines.MICROBIT_WRITE_LED_REQUEST -> {
+                service = gatt.getService(UUID.fromString(Defines.MICROBIT_LED_SERVICE))
+                characteristic = service.getCharacteristic(UUID.fromString(Defines.MICROBIT_LED_MATRIX_STATE))
                 val byteData = arrayListOf<Byte>(10, 0, 17, 14, 0)
                 characteristic.value = byteData.toByteArray()
             }
@@ -447,13 +451,13 @@ class MainActivity : AppCompatActivity() {
         builder.setItems(options) { _, which ->
             when (which) {
                 0 -> {
-                    readBleData(Defines.DEVICE_NAME_REQUEST)
+                    readBleData(Defines.MICROBIT_DEVICE_NAME_REQUEST)
                 }
                 1 -> {
-                    readBleData(Defines.MODEL_NUMBER_REQUEST)
+                    readBleData(Defines.MICROBIT_MODEL_NUMBER_REQUEST)
                 }
                 2 -> {
-                    readBleData(Defines.FIRMWARE_REVISION_REQUEST)
+                    readBleData(Defines.MICROBIT_FIRMWARE_REVISION_REQUEST)
                 }
             }
         }
@@ -463,9 +467,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showReceiveOptionsDialogInkbird() {
-        mainHandler.post {
-            Toast.makeText(applicationContext, "Coming soon!", Toast.LENGTH_LONG).show()
+
+        val builder = AlertDialog.Builder(this)
+        val options = arrayOf("Device Name")
+
+        builder.setItems(options) { _, which ->
+            when (which) {
+                0 -> {
+                    readBleData(Defines.INKBIRD_NAME_REQUEST)
+                }
+            }
         }
+
+        val dialog = builder.create()
+        dialog.show()
     }
 
     private fun showSendOptionsDialogMicrobit() {
@@ -475,13 +490,13 @@ class MainActivity : AppCompatActivity() {
         builder.setItems(options) { _, which ->
             when (which) {
                 0 -> {
-                    writeBleData(Defines.WRITE_LED_TEXT_REQUEST, "Text")
+                    writeBleData(Defines.MICROBIT_WRITE_LED_TEXT_REQUEST, "Text")
                 }
                 1 -> {
-                    writeBleData(Defines.WRITE_LED_REQUEST, "") //no data needed
+                    writeBleData(Defines.MICROBIT_WRITE_LED_REQUEST, "") //no data needed
                 }
                 2 -> {
-                    writeBleData(Defines.WRITE_LED_TEXT_REQUEST, "0")
+                    writeBleData(Defines.MICROBIT_WRITE_LED_TEXT_REQUEST, "0")
                 }
             }
         }.show()
