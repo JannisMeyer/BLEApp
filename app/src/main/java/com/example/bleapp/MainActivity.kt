@@ -33,7 +33,7 @@ import java.util.regex.Pattern
 class MainActivity : AppCompatActivity() {
 
     //TODO: Add disconnect button
-    //TODO: connect dropdown menu with code
+    //TODO: Add bond flags for micro:bit and Inkbird, remove bond dependency when bonds are existent
     //(TODO: Replace deprecated functions)
 
     private val bondStateReceiver = object : BroadcastReceiver() {
@@ -132,12 +132,11 @@ class MainActivity : AppCompatActivity() {
                 if (selectedDevice == "micro:bit") {
                     microbitSelected = true
                     inkbirdSelected = false
+                    binding.connectGattButton.isEnabled = true
                 } else if (selectedDevice == "Inkbird") {
                     microbitSelected = false
                     inkbirdSelected = true
-                } else {
-                    microbitSelected = false
-                    inkbirdSelected = false
+                    binding.connectGattButton.isEnabled = true
                 }
             }
             override fun onNothingSelected(p0: AdapterView<*>?) {
@@ -181,12 +180,12 @@ class MainActivity : AppCompatActivity() {
                         binding.scanButton.isEnabled = false
                         binding.bondStatusText.text = device.name
                         Log.i(TAG, "micro:bit already bonded!")
-                        if (!gattConnected) {
+                        if (!gattConnected && microbitSelected) {
                             Log.i(TAG, "Creating gatt connection to micro:bit...")
                             setupGattConnection(device.address, this)
                         }
                         else {
-                            Log.i(TAG, "micro:bit already connected!")
+                            Log.i(TAG, "Inkbird selected or micro:bit already connected!")
                             binding.connectGattButton.isEnabled = false
                         }
                         break
@@ -195,12 +194,12 @@ class MainActivity : AppCompatActivity() {
                         binding.scanButton.isEnabled = false
                         binding.bondStatusText.text = device.name
                         Log.i(TAG, "Inkbird already bonded!")
-                        if (!gattConnected) {
+                        if (!gattConnected && inkbirdSelected) {
                             Log.i(TAG, "Creating gatt connection to Inkbird...")
                             setupGattConnection(device.address, this)
                         }
                         else {
-                            Log.i(TAG, "Inkbird already connected!")
+                            Log.i(TAG, "micro:bit selected or Inkbird already connected!")
                             binding.connectGattButton.isEnabled = false
                         }
                         break
@@ -213,7 +212,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             else {
-                Log.i(TAG, "No device bonded!")
+                Log.i(TAG, "No bonded devices!")
                 binding.bondStatusText.text = ""
                 binding.scanButton.isEnabled = true
             }
@@ -259,26 +258,30 @@ class MainActivity : AppCompatActivity() {
         binding.connectGattButton.setOnClickListener {
             if (bluetoothAdapter != null && bluetoothAdapter.isEnabled && locationManager.isLocationEnabled) {
                 val pairedDevices = bluetoothAdapter.bondedDevices
-                var acceptedDeviceBondedOrGattConnectionAlreadyEstablished = false
 
                 if (pairedDevices != null) {
                     for (device in pairedDevices) {
                         if (device.name.contains("BBC micro:bit") && !gattConnected) {
-                            Log.i(TAG, "Creating gatt connection to micro:bit...")
-                            binding.connectGattButton.isEnabled = false
-                            setupGattConnection(device.address, this)
-                            acceptedDeviceBondedOrGattConnectionAlreadyEstablished = true
+                            if (microbitSelected) {
+                                Log.i(TAG, "Creating gatt connection to micro:bit...")
+                                binding.connectGattButton.isEnabled = false
+                                setupGattConnection(device.address, this)
+                            } else {
+                                Log.i(TAG, "Wrong device selected!")
+                                Toast.makeText(this, "Wrong device selected!", Toast.LENGTH_LONG).show()
+                            }
                             break
                         } else if (device.name.contains("Ink@IAM-T1") && !gattConnected) {
-                            Log.i(TAG, "Creating gatt connection to Inkbird...")
-                            binding.connectGattButton.isEnabled = false
-                            setupGattConnection(device.address, this)
-                            acceptedDeviceBondedOrGattConnectionAlreadyEstablished = true
-                            break
+                            if (inkbirdSelected) {
+                                Log.i(TAG, "Creating gatt connection to Inkbird...")
+                                binding.connectGattButton.isEnabled = false
+                                setupGattConnection(device.address, this)
+                                break
+                            } else {
+                                Log.i(TAG, "Wrong device selected!")
+                                Toast.makeText(this, "Wrong device selected!", Toast.LENGTH_LONG).show()
+                            }
                         }
-                    }
-                    if (!acceptedDeviceBondedOrGattConnectionAlreadyEstablished) {
-                        Log.w(TAG, "No accepted device bonded or gatt connection already established!")
                     }
                 }
                 else {
@@ -286,7 +289,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } else {
                 Toast.makeText(this, "Bluetooth or location not enabled!", Toast.LENGTH_LONG).show()
-                Log.e(TAG, "Bluetooth or location not available/activated!")
+                Log.e(TAG, "Bluetooth or location not enabled!")
             }
         }
         binding.connectGattButton.isEnabled = false
@@ -350,18 +353,13 @@ class MainActivity : AppCompatActivity() {
 
         var granted = true
 
-        var test = 0
-
         //case of bluetooth permissions
         if (requestCode == Defines.BLUETOOTH_PERMISSIONS_REQUEST_CODE && grantResults.isNotEmpty()) {
             for (item in grantResults) {
                 if (item == PackageManager.PERMISSION_DENIED) {
                     granted = false
-                    Toast.makeText(this, item.toString() + test.toString(), Toast.LENGTH_LONG)
-                        .show()
                     break;
                 }
-                test++
             }
             if (granted) {
                 Log.i(TAG, "Bluetooth permissions granted!")
@@ -374,11 +372,7 @@ class MainActivity : AppCompatActivity() {
             for (item in grantResults) {
                 if (item == PackageManager.PERMISSION_DENIED) {
                     granted = false
-                    Toast.makeText(this, "$item $test", Toast.LENGTH_LONG)
-                        .show()
-                    break;
                 }
-                test++
             }
             if (granted) {
                 Log.i(TAG, "Location permissions granted!")
@@ -553,8 +547,14 @@ class MainActivity : AppCompatActivity() {
                         gattConnected = true
                         if (device.name.contains("BBC micro:bit")) {
                             microbitConnected = true
+                            mainHandler.post {
+                                Toast.makeText(applicationContext, "micro:bit connected!", Toast.LENGTH_LONG).show()
+                            }
                         } else if (device.name.contains("Ink@IAM-T1")) {
                             inkbirdConnected = true
+                            mainHandler.post {
+                                Toast.makeText(applicationContext, "Inkbird connected!", Toast.LENGTH_LONG).show()
+                            }
                         }
                         mainHandler.post {
                             binding.connectGattButton.isEnabled = false //only main/ui thread can access ui/animation elements
