@@ -7,4 +7,5 @@
     <string name="send_data_button_text">Send data</string>
     <string name="bond_status_headline_text">Bonded to:</string>
     <string name="gatt_status_headline_text">Connected to:</string>
+    <string name="selection_text">Selected device:</string>
 </resources>

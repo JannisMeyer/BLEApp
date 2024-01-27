@@ -18,6 +18,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Spinner
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
@@ -29,9 +32,9 @@ import java.util.regex.Pattern
 
 class MainActivity : AppCompatActivity() {
 
-    //(TODO: Add disconnect button)
-    //(TODO: Replace deprecated intent launch in onClickListener)
-    //TODO: Add services from Inkbird + differentiate between Inkbird and micro:bit
+    //TODO: Add disconnect button
+    //TODO: connect dropdown menu with code
+    //(TODO: Replace deprecated functions)
 
     private val bondStateReceiver = object : BroadcastReceiver() {
         @SuppressLint("MissingPermission")
@@ -66,7 +69,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    //companion object to recall bond state
+    //companion object to recall bond/connect states
     companion object {
         var bonded = false
         var gattConnected = false
@@ -74,7 +77,9 @@ class MainActivity : AppCompatActivity() {
         var streamActive = false
         var coroutineExists = false
         var microbitConnected = false
-        var inkbirdConnected= false
+        var inkbirdConnected = false
+        var microbitSelected = false
+        var inkbirdSelected = false
     }
 
     private lateinit var binding:ActivityMainBinding
@@ -108,6 +113,37 @@ class MainActivity : AppCompatActivity() {
         //connect this activity with corresponding display
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // set up device selection menu
+        val adapter = ArrayAdapter.createFromResource(
+            this,
+            R.array.spinnerItems,
+            android.R.layout.simple_spinner_item
+        )
+
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+
+        binding.selection.adapter = adapter
+
+        binding.selection.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parentView: AdapterView<*>?, selectedItemView: android.view.View?, position: Int, id: Long) {
+
+                val selectedDevice = parentView?.getItemAtPosition(position).toString()
+                if (selectedDevice == "micro:bit") {
+                    microbitSelected = true
+                    inkbirdSelected = false
+                } else if (selectedDevice == "Inkbird") {
+                    microbitSelected = false
+                    inkbirdSelected = true
+                } else {
+                    microbitSelected = false
+                    inkbirdSelected = false
+                }
+            }
+            override fun onNothingSelected(p0: AdapterView<*>?) {
+                ;
+            }
+        }
 
         //Check required permissions
         checkPermissions(locationPermissions, Defines.LOCATION_PERMISSIONS_REQUEST_CODE) //location permissions have to be requested separately
