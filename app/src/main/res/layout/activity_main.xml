@@ -30,40 +30,18 @@
         app:layout_constraintEnd_toEndOf="parent" />
 
     <TextView
-        android:id="@+id/bond_status_text_headline"
-        android:layout_width="180dp"
-        android:layout_height="50dp"
-        android:layout_margin="10dp"
-        android:gravity="center"
-        android:text="@string/bond_status_headline_text"
-        android:textSize="20sp"
-        app:layout_constraintTop_toBottomOf="@+id/selection_text"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <TextView
         android:id="@+id/gatt_status_text_headline"
-        android:layout_width="180dp"
+        android:layout_width="match_parent"
         android:layout_height="50dp"
         android:layout_margin="10dp"
         android:gravity="center"
         android:text="@string/gatt_status_headline_text"
         android:textSize="20sp"
-        app:layout_constraintTop_toBottomOf="@+id/selection_text"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <TextView
-        android:id="@+id/bond_status_text"
-        android:layout_width="180dp"
-        android:layout_height="70dp"
-        android:layout_margin="10dp"
-        android:gravity="center"
-        android:background="@drawable/border"
-        app:layout_constraintTop_toBottomOf="@+id/bond_status_text_headline"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/selection_text" />
 
     <TextView
         android:id="@+id/gatt_status_text"
-        android:layout_width="180dp"
+        android:layout_width="match_parent"
         android:layout_height="70dp"
         android:layout_margin="10dp"
         android:gravity="center"

@@ -3,10 +3,10 @@
     <string name="scan_button_text">Scan</string>
     <string name="gatt_button_text_unconnected">Connect</string>
     <string name="gatt_button_text_connected">Disconnect</string>
-    <string name="get_name_button_text">Receive data</string>
-    <string name="received_data_headline_text">Received data</string>
-    <string name="send_data_button_text">Send data</string>
-    <string name="bond_status_headline_text">Bonded to:</string>
-    <string name="gatt_status_headline_text">Connected to:</string>
-    <string name="selection_text">Selected device:</string>
+    <string name="get_name_button_text">Receive Data</string>
+    <string name="received_data_headline_text">Received Data</string>
+    <string name="send_data_button_text">Send Data</string>
+    <string name="bond_status_headline_text">Bonded To:</string>
+    <string name="gatt_status_headline_text">Connected To:</string>
+    <string name="selection_text">Selected Device:</string>
 </resources>
