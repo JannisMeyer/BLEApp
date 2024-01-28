@@ -121,12 +121,12 @@
         app:layout_constraintEnd_toEndOf="parent" />
 
     <Button
-        android:id="@+id/connect_gatt_button"
+        android:id="@+id/gatt_button"
         android:layout_width="170dp"
         android:layout_height="70dp"
         android:layout_marginBottom="50dp"
         android:layout_marginEnd="20dp"
-        android:text="@string/connect_gatt_button_text"
+        android:text="@string/gatt_button_text_unconnected"
         android:backgroundTint="@color/bluetooth_blue"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

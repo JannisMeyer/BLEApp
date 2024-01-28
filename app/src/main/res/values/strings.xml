@@ -1,7 +1,8 @@
 <resources>
     <string name="app_name">BLEApp</string>
     <string name="scan_button_text">Scan</string>
-    <string name="connect_gatt_button_text">Connect GATT</string>
+    <string name="gatt_button_text_unconnected">Connect</string>
+    <string name="gatt_button_text_connected">Disconnect</string>
     <string name="get_name_button_text">Receive data</string>
     <string name="received_data_headline_text">Received data</string>
     <string name="send_data_button_text">Send data</string>
