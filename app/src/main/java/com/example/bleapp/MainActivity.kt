@@ -32,6 +32,7 @@ import java.util.regex.Pattern
 class MainActivity : AppCompatActivity() {
 
     // (TODO: Replace deprecated functions)
+    // TODO: Add bond flags in UI
 
     // activate xml binding
     private lateinit var xmlBinding:ActivityMainBinding
@@ -470,14 +471,20 @@ class MainActivity : AppCompatActivity() {
                         Log.i(TAG, "Initiating device bonding...")
                     }
                     else {
-                        if (microbitBonded) {
-                            Log.w(TAG, "Failed to initiate device bonding, micro:bit already bonded!")
-                            Toast.makeText(applicationContext, "micro:bit already bonded!", Toast.LENGTH_LONG).show()
-                        } else if (inkbirdBonded) {
-                            Log.w(TAG, "Failed to initiate device bonding, Inkbird already bonded!")
-                            Toast.makeText(applicationContext, "Inkbird already bonded!", Toast.LENGTH_LONG).show()
+                        if (scanResult != null) {
+                            if (microbitBonded && scanResult.device.name.contains("BBC micro:bit")) {
+                                Log.w(TAG, "Failed to initiate device bonding, micro:bit already bonded!")
+                                Toast.makeText(applicationContext, "micro:bit already bonded!", Toast.LENGTH_LONG).show()
+                            } else if (inkbirdBonded && scanResult.device.name.contains("Ink@IAM-T1")) {
+                                Log.w(TAG, "Failed to initiate device bonding, Inkbird already bonded!")
+                                Toast.makeText(applicationContext, "Inkbird already bonded!", Toast.LENGTH_LONG).show()
+                            } else {
+                                Log.e(TAG, "Failed to initiate device bonding, scanResult is empty!")
+                                Toast.makeText(applicationContext, "Failed to initiate device bonding!", Toast.LENGTH_LONG).show()
+                            }
                         } else {
                             Log.e(TAG, "Failed to initiate device bonding!")
+                            Toast.makeText(applicationContext, "Failed to initiate device bonding!", Toast.LENGTH_LONG).show()
                         }
                     }
                 }
@@ -501,7 +508,7 @@ class MainActivity : AppCompatActivity() {
 
                     // check if connected device is accepted device
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
-                        Log.i(TAG, "BluetoothDevice CONNECTED: ${device.name}")
+                        Log.i(TAG, "connected to: ${device.name}")
                         if (device.name.contains("BBC micro:bit")) {
                             microbitConnected = true
                             mainHandler.post { // only main/ui thread can access ui/animation elements
@@ -548,7 +555,7 @@ class MainActivity : AppCompatActivity() {
                             xmlBinding.selection.isEnabled = true
                             xmlBinding.receivedData.text = ""
                         }
-                        Log.i(TAG, "BluetoothDevice DISCONNECTED: ${device.name}")
+                        Log.i(TAG, "disconnected: ${device.name}")
                     }
                 }
                 else {
